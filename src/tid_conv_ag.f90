@@ -99,7 +99,7 @@ PROGRAM tid_conv_ag
   ! Add dimension
   ierr=NF90_DEF_DIM(ncid,'x',npiglo,idx)
   ierr=NF90_DEF_DIM(ncid,'y',npjglo,idy)
-  ierr=NF90_DEF_DIM(ncid,'time_counter',npjglo,idt)
+  ierr=NF90_DEF_DIM(ncid,'time_counter',NF90_UNLIMITED,idt)
   ! add variables 
   ierr=NF90_DEF_VAR(ncid,'nav_lon',NF90_DOUBLE,(/idx,idy/), idlon)
     ierr=NF90_PUT_ATT(ncid,idlon,'standard_name','longitude')
