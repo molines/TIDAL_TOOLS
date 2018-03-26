@@ -1,5 +1,6 @@
 #
 bin/*
+src/make.macro
 # Prerequisites
 *.d
 
