@@ -1,14 +1,16 @@
 PROGRAM tid_conv_ri
-  !! -------------------------------------------------------
-  !!      PROGRAM tid_conv_ri
-  !!      
-  !!  Purpose : convert a tidal consituant giben as Amplitude, Phase into
-  !!           its equivalent Real and Imaginary part
+  !!======================================================================
+  !!                     ***  PROGRAM  tid_conv_ri  ***
+  !!======================================================================
+  !!  ** Purpose :  convert a tidal constituent given as Amplitude, Phase into
+  !!               its equivalent Real and Imaginary part
+  !!  ** Method  : Real= Ampli*cos(pi/180*phase)
+  !!           Imag= Ampli*sin(pi/180*phase)
   !!
-  !!  Method : Real= Ampli*cos(pi/180*phase)
-  !!           Imag= Amplu*sin(pi/180*phase)
-  !! ---------------------------------------------------------
+  !! History :  1.0  : 03/2018  : J.M. Molines : 
+  !!----------------------------------------------------------------------
   USE netcdf
+
   IMPLICIT NONE
   INTEGER(KIND=4)                           :: npiglo, npjglo
   INTEGER(KIND=4)                           :: narg, ipos
@@ -25,7 +27,7 @@ PROGRAM tid_conv_ri
   CHARACTER(LEN=255)  :: cf_in
   CHARACTER(LEN=255)  :: cf_out
 
-  !! ---------------------------------------------------------------
+  !!----------------------------------------------------------------------
   narg = iargc()
   IF ( narg == 0 ) THEN
      PRINT *,' usage : conv_RI <Tidal_File_AG>'
