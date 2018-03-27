@@ -89,7 +89,7 @@ PROGRAM tid_conv_ag
   ENDWHERE
 
   WHERE(dreal /= spval)
-     dphase(:,:)=ATAN2(dimag,dreal)
+     dphase(:,:)=ATAN2(dimag,dreal)*180.d0/dpi
   ELSEWHERE
      dphase(:,:)= spval*1.d0
   ENDWHERE
