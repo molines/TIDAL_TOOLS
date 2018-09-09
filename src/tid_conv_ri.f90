@@ -26,11 +26,18 @@ PROGRAM tid_conv_ri
 
   CHARACTER(LEN=255)  :: cf_in
   CHARACTER(LEN=255)  :: cf_out
+! Default names 
+  CHARACTER(LEN=80 )  :: cld_x='nx'  ! i dimension name
+  CHARACTER(LEN=80 )  :: cld_y='ny'  ! j dimension name
+
+  CHARACTER(LEN=80 )  :: cv_lon='longitude'   ! longitude name
+  CHARACTER(LEN=80 )  :: cv_lat='latitude'    ! longitude name
+  CHARACTER(LEN=80 )  :: cv_root='elevation'  ! variable rootname
 
   !!----------------------------------------------------------------------
   narg = iargc()
   IF ( narg == 0 ) THEN
-     PRINT *,' usage : conv_RI <Tidal_File_AG>'
+     PRINT *,' usage : tid_conv_ri  <Tidal_File_AG> [VAR-rootname]'
      PRINT *, ' '
      PRINT *, ' PURPOSE:'
      PRINT *, '    Compute real and imaginary part of the tides, in order to use SOSIE'
@@ -39,37 +46,45 @@ PROGRAM tid_conv_ri
      PRINT *, ' ARGUMENTS:'
      PRINT *, '    Tidal file with amplitude and phase (degrees)'
      PRINT *, ' '
+     PRINT *, ' OPTIONS:'
+     PRINT *, '    VAR-rootname :Root name of the variable to work with (default is '
+     PRINT *, '  ',TRIM(cv_root)//' )'
+     PRINT *, '      The program will look for <VAR-rootname>_a and <VAR-rootname>_G'
+     PRINT *, ' '
      PRINT *, ' OUTPUT:'
-     PRINT *, '    Netcdf file names <INPUT_FILE%.nc>_RI.nc'
-     PRINT *, '    Variables : tid_real, tid_imag'
+     PRINT *, '    Netcdf file names <INPUT_FILE%.nc>_<VAR-rootname>_RI.nc'
+     PRINT *, '    Variables : <VAR-rootname>_real, <VAR-rootname>_imag'
      PRINT *, ' '
      STOP 0
   ENDIF
 
   CALL getarg(1,cf_in)
+  IF ( narg == 2 ) THEN
+    CALL getarg( 2,cv_root )
+  ENDIF
   ipos=INDEX(cf_in,".nc") 
-  cf_out=TRIM(cf_in(1:ipos-1))//'_RI.nc'
+  cf_out=TRIM(cf_in(1:ipos-1))//'_'//TRIM(cv_root)//'_RI.nc'
   PRINT *, ' Output file : ',TRIM(cf_out)
 
   ! read input file 
   ierr = NF90_OPEN(cf_in,NF90_NOWRITE, ncid)
   !  read dimension
-  ierr = NF90_INQ_DIMID(ncid,'nx',id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npiglo)
-  ierr = NF90_INQ_DIMID(ncid,'ny',id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npjglo)
+  ierr = NF90_INQ_DIMID(ncid,cld_x,id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npiglo)
+  ierr = NF90_INQ_DIMID(ncid,cld_y,id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npjglo)
   !  Allocate arrays
   ALLOCATE ( ampli(npiglo, npjglo), phase(npiglo,npjglo) )
   ALLOCATE ( dreal(npiglo, npjglo), dimag(npiglo,npjglo) )
   ALLOCATE ( dlon(npiglo), dlat(npjglo) )
   ! read lon/lat
-  ierr = NF90_INQ_VARID(ncid,'longitude', id )
+  ierr = NF90_INQ_VARID(ncid,cv_lon, id )
     ierr = NF90_GET_VAR(ncid,id,dlon)
-  ierr = NF90_INQ_VARID(ncid,'latitude', id )
+  ierr = NF90_INQ_VARID(ncid,cv_lat, id )
     ierr = NF90_GET_VAR(ncid,id,dlat)
 
   ! read arrays
-  ierr = NF90_INQ_VARID(ncid,'elevation_a', id )
+  ierr = NF90_INQ_VARID(ncid,TRIM(cv_root)//'_a', id )
     ierr = NF90_GET_VAR(ncid,id,ampli)
-  ierr = NF90_INQ_VARID(ncid,'elevation_G', id )
+  ierr = NF90_INQ_VARID(ncid,TRIM(cv_root)//'_G', id )
     ierr = NF90_GET_VAR(ncid,id,phase)
   ! get spval ( identical for both)
   ierr = NF90_GET_ATT(ncid,id,'_FillValue',spval)
@@ -93,26 +108,26 @@ PROGRAM tid_conv_ri
   ! Create output file
   ierr=NF90_CREATE(cf_out,OR(NF90_NOCLOBBER,NF90_64BIT_OFFSET),ncid)
   ! Add dimension
-  ierr=NF90_DEF_DIM(ncid,'nx',npiglo,idx)
-  ierr=NF90_DEF_DIM(ncid,'ny',npjglo,idy)
+  ierr=NF90_DEF_DIM(ncid,cld_x,npiglo,idx)
+  ierr=NF90_DEF_DIM(ncid,cld_y,npjglo,idy)
   ! add variables 
-  ierr=NF90_DEF_VAR(ncid,'longitude',NF90_DOUBLE,(/idx/), idlon)
+  ierr=NF90_DEF_VAR(ncid,cv_lon,NF90_DOUBLE,(/idx/), idlon)
     ierr=NF90_PUT_ATT(ncid,idlon,'standard_name','longitude')
     ierr=NF90_PUT_ATT(ncid,idlon,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlon,'axis','X')
 
-  ierr=NF90_DEF_VAR(ncid,'latitude',NF90_DOUBLE,(/idy/), idlat)
+  ierr=NF90_DEF_VAR(ncid,cv_lat,NF90_DOUBLE,(/idy/), idlat)
     ierr=NF90_PUT_ATT(ncid,idlat,'standard_name','latitude')
     ierr=NF90_PUT_ATT(ncid,idlat,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlat,'axis','Y')
 
-  ierr=NF90_DEF_VAR(ncid,'tid_real',NF90_DOUBLE,(/idx,idy/), idreal)
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_real',NF90_DOUBLE,(/idx,idy/), idreal)
     ierr=NF90_PUT_ATT(ncid,idreal,'coordinates','latitude longitude')
     ierr=NF90_PUT_ATT(ncid,idreal,'standard_name','tidal_real_part')
     ierr=NF90_PUT_ATT(ncid,idreal,'units','m')
     ierr=NF90_PUT_ATT(ncid,idreal,'_FillValue',spval*1.d0)
 
-  ierr=NF90_DEF_VAR(ncid,'tid_imag',NF90_DOUBLE,(/idx,idy/), idimag)
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_imag',NF90_DOUBLE,(/idx,idy/), idimag)
     ierr=NF90_PUT_ATT(ncid,idimag,'coordinates','latitude longitude')
     ierr=NF90_PUT_ATT(ncid,idimag,'standard_name','tidal_imag_part')
     ierr=NF90_PUT_ATT(ncid,idimag,'units','m')
