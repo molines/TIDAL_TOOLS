@@ -14,8 +14,8 @@ PROGRAM tid_conv_ri
   IMPLICIT NONE
   INTEGER(KIND=4)                           :: npiglo, npjglo
   INTEGER(KIND=4)                           :: narg, ipos
-  INTEGER(KIND=4)                           :: ncid, ierr, id, idx, idy
-  INTEGER(KIND=4)                           :: idlon, idlat, idreal, idimag
+  INTEGER(KIND=4)                           :: ncid, ierr, id, idx, idy, idt
+  INTEGER(KIND=4)                           :: idlon, idlat, idreal, idimag, idtim
 
   REAL(KIND=4)                              :: spval
   REAL(KIND=4), DIMENSION(:,:), ALLOCATABLE :: ampli, phase
@@ -29,9 +29,11 @@ PROGRAM tid_conv_ri
 ! Default names 
   CHARACTER(LEN=80 )  :: cld_x='nx'  ! i dimension name
   CHARACTER(LEN=80 )  :: cld_y='ny'  ! j dimension name
+  CHARACTER(LEN=80 )  :: cld_t='nt'  ! j dimension name
 
   CHARACTER(LEN=80 )  :: cv_lon='longitude'   ! longitude name
   CHARACTER(LEN=80 )  :: cv_lat='latitude'    ! longitude name
+  CHARACTER(LEN=80 )  :: cv_tim='time'        ! longitude name
   CHARACTER(LEN=80 )  :: cv_root='elevation'  ! variable rootname
 
   !!----------------------------------------------------------------------
@@ -41,7 +43,8 @@ PROGRAM tid_conv_ri
      PRINT *, ' '
      PRINT *, ' PURPOSE:'
      PRINT *, '    Compute real and imaginary part of the tides, in order to use SOSIE'
-     PRINT *, '    on continuous fields.'
+     PRINT *, '    on continuous fields. An unlimited time axis is added in the output'
+     PRINT *,'     file for sosie.'
      PRINT *, ' '
      PRINT *, ' ARGUMENTS:'
      PRINT *, '    Tidal file with amplitude and phase (degrees)'
@@ -110,6 +113,7 @@ PROGRAM tid_conv_ri
   ! Add dimension
   ierr=NF90_DEF_DIM(ncid,cld_x,npiglo,idx)
   ierr=NF90_DEF_DIM(ncid,cld_y,npjglo,idy)
+  ierr=NF90_DEF_DIM(ncid,cld_t,NF90_UNLIMITED,idt)
   ! add variables 
   ierr=NF90_DEF_VAR(ncid,cv_lon,NF90_DOUBLE,(/idx/), idlon)
     ierr=NF90_PUT_ATT(ncid,idlon,'standard_name','longitude')
@@ -121,13 +125,15 @@ PROGRAM tid_conv_ri
     ierr=NF90_PUT_ATT(ncid,idlat,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlat,'axis','Y')
 
-  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_real',NF90_DOUBLE,(/idx,idy/), idreal)
+  ierr=NF90_DEF_VAR(ncid,cv_tim,NF90_DOUBLE,(/idt/), idtim)
+
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_real',NF90_DOUBLE,(/idx,idy,idt/), idreal)
     ierr=NF90_PUT_ATT(ncid,idreal,'coordinates','latitude longitude')
     ierr=NF90_PUT_ATT(ncid,idreal,'standard_name','tidal_real_part')
     ierr=NF90_PUT_ATT(ncid,idreal,'units','m')
     ierr=NF90_PUT_ATT(ncid,idreal,'_FillValue',spval*1.d0)
 
-  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_imag',NF90_DOUBLE,(/idx,idy/), idimag)
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_imag',NF90_DOUBLE,(/idx,idy,idt/), idimag)
     ierr=NF90_PUT_ATT(ncid,idimag,'coordinates','latitude longitude')
     ierr=NF90_PUT_ATT(ncid,idimag,'standard_name','tidal_imag_part')
     ierr=NF90_PUT_ATT(ncid,idimag,'units','m')
@@ -139,6 +145,7 @@ PROGRAM tid_conv_ri
   ! Put variables
   ierr = NF90_PUT_VAR(ncid,idlon,dlon)
   ierr = NF90_PUT_VAR(ncid,idlat,dlat)
+  ierr = NF90_PUT_VAR(ncid,idtim,(/0.d0/) )
   ierr = NF90_PUT_VAR(ncid,idreal,dreal)
   ierr = NF90_PUT_VAR(ncid,idimag,dimag)
 
