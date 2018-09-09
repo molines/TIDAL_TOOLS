@@ -27,12 +27,21 @@ PROGRAM tid_conv_ag
 
   CHARACTER(LEN=255)  :: cf_in
   CHARACTER(LEN=255)  :: cf_out
+! Default names 
+  CHARACTER(LEN=80 )  :: cld_x='nx'  ! i dimension name
+  CHARACTER(LEN=80 )  :: cld_y='ny'  ! j dimension name
+  CHARACTER(LEN=80 )  :: cld_t='nt'  ! t dimension name (if any)
+
+  CHARACTER(LEN=80 )  :: cv_lon='longitude'   ! longitude name
+  CHARACTER(LEN=80 )  :: cv_lat='latitude'    ! longitude name
+  CHARACTER(LEN=80 )  :: cv_tim='time'        ! longitude name
+  CHARACTER(LEN=80 )  :: cv_root='elevation'  ! variable rootname
 
   !!----------------------------------------------------------------------
 
   narg = iargc()
   IF ( narg == 0 ) THEN
-     PRINT *,' usage : conv_ag <Tidal_File_RI>'
+     PRINT *,' usage : conv_ag <Tidal_File_RI> [VAR-rootname]'
      PRINT *, ' '
      PRINT *, ' PURPOSE:'
      PRINT *, '    Compute amplitude and phase from the real/imaginary part'
