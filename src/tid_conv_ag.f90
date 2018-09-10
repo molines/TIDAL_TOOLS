@@ -3,7 +3,8 @@ PROGRAM tid_conv_ag
   !!                     ***  PROGRAM  tid_conv_ag ***
   !!======================================================================
   !!  ** Purpose : convert a tidal constituent given as real/imaginary into
-  !!           its equivalent amplitude and phase.
+  !!           its equivalent amplitude and phase. Assume that the input file
+  !!           is a NEMO-like file with lon and lat 2D and time axis
   !!
   !!  ** Method  : ampli = sqrt( real*real + imag*imag)
   !!               phase = atan2(imag, real) * 180./pi
@@ -28,13 +29,13 @@ PROGRAM tid_conv_ag
   CHARACTER(LEN=255)  :: cf_in
   CHARACTER(LEN=255)  :: cf_out
 ! Default names 
-  CHARACTER(LEN=80 )  :: cld_x='nx'  ! i dimension name
-  CHARACTER(LEN=80 )  :: cld_y='ny'  ! j dimension name
-  CHARACTER(LEN=80 )  :: cld_t='nt'  ! t dimension name (if any)
+  CHARACTER(LEN=80 )  :: cld_x='x'  ! i dimension name
+  CHARACTER(LEN=80 )  :: cld_y='y'  ! j dimension name
+  CHARACTER(LEN=80 )  :: cld_t='time_counter'  ! t dimension name (if any)
 
-  CHARACTER(LEN=80 )  :: cv_lon='longitude'   ! longitude name
-  CHARACTER(LEN=80 )  :: cv_lat='latitude'    ! longitude name
-  CHARACTER(LEN=80 )  :: cv_tim='time'        ! longitude name
+  CHARACTER(LEN=80 )  :: cv_lon='nav_lon'   ! longitude name
+  CHARACTER(LEN=80 )  :: cv_lat='nav_lat'   ! longitude name
+  CHARACTER(LEN=80 )  :: cv_tim='time_counter'        ! longitude name
   CHARACTER(LEN=80 )  :: cv_root='elevation'  ! variable rootname
 
   !!----------------------------------------------------------------------
@@ -65,24 +66,24 @@ PROGRAM tid_conv_ag
   ! read input file 
   ierr = NF90_OPEN(cf_in,NF90_NOWRITE, ncid)
   !  read dimension
-  ierr = NF90_INQ_DIMID(ncid,'x',id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npiglo)
-  ierr = NF90_INQ_DIMID(ncid,'y',id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npjglo)
-  ierr = NF90_INQ_DIMID(ncid,'time_counter',id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npt)
+  ierr = NF90_INQ_DIMID(ncid,cld_x,id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npiglo)
+  ierr = NF90_INQ_DIMID(ncid,cld_y,id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npjglo)
+  ierr = NF90_INQ_DIMID(ncid,cld_t,id ) ; ierr = NF90_INQUIRE_DIMENSION(ncid, id, len=npt)
   !  Allocate arrays
   ALLOCATE ( dampli(npiglo, npjglo), dphase(npiglo,npjglo) )
   ALLOCATE ( dreal(npiglo, npjglo) , dimag(npiglo,npjglo)  )
   ALLOCATE ( dlon2d(npiglo, npjglo) , dlat2d(npiglo,npjglo)  )
   ALLOCATE ( dtime(1) )
   ! read lon/lat
-  ierr = NF90_INQ_VARID(ncid,'gplamt', id )
+  ierr = NF90_INQ_VARID(ncid,cv_lon, id )
     ierr = NF90_GET_VAR(ncid,id,dlon2d)
-  ierr = NF90_INQ_VARID(ncid,'gphit', id )
+  ierr = NF90_INQ_VARID(ncid,cv_lat, id )
     ierr = NF90_GET_VAR(ncid,id,dlat2d)
 
   ! read arrays
-  ierr = NF90_INQ_VARID(ncid,'tid_real', id )
+  ierr = NF90_INQ_VARID(ncid,TRIM(cv_root)//'_real', id )
     ierr = NF90_GET_VAR(ncid,id,dreal)
-  ierr = NF90_INQ_VARID(ncid,'tid_imag', id )
+  ierr = NF90_INQ_VARID(ncid,TRIM(cv_root)//'_imag', id )
     ierr = NF90_GET_VAR(ncid,id,dimag)
   ! get spval ( identical for both)
   ierr = NF90_GET_ATT(ncid,id,'_FillValue',spval)
@@ -106,30 +107,30 @@ PROGRAM tid_conv_ag
   ! Create output file
   ierr=NF90_CREATE(cf_out,OR(NF90_CLOBBER,NF90_64BIT_OFFSET),ncid)
   ! Add dimension
-  ierr=NF90_DEF_DIM(ncid,'x',npiglo,idx)
-  ierr=NF90_DEF_DIM(ncid,'y',npjglo,idy)
-  ierr=NF90_DEF_DIM(ncid,'time_counter',NF90_UNLIMITED,idt)
+  ierr=NF90_DEF_DIM(ncid,cld_x,npiglo,idx)
+  ierr=NF90_DEF_DIM(ncid,cld_y,npjglo,idy)
+  ierr=NF90_DEF_DIM(ncid,cld_t,NF90_UNLIMITED,idt)
   ! add variables 
-  ierr=NF90_DEF_VAR(ncid,'nav_lon',NF90_DOUBLE,(/idx,idy/), idlon)
+  ierr=NF90_DEF_VAR(ncid,cv_lon,NF90_DOUBLE,(/idx,idy/), idlon)
     ierr=NF90_PUT_ATT(ncid,idlon,'standard_name','longitude')
     ierr=NF90_PUT_ATT(ncid,idlon,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlon,'axis','X')
 
-  ierr=NF90_DEF_VAR(ncid,'nav_lat',NF90_DOUBLE,(/idx,idy/), idlat)
+  ierr=NF90_DEF_VAR(ncid,cv_lat,NF90_DOUBLE,(/idx,idy/), idlat)
     ierr=NF90_PUT_ATT(ncid,idlat,'standard_name','latitude')
     ierr=NF90_PUT_ATT(ncid,idlat,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlat,'axis','Y')
 
-  ierr=NF90_DEF_VAR(ncid,'time_counter',NF90_DOUBLE,(/idt/), idtime)
+  ierr=NF90_DEF_VAR(ncid,cv_tim,NF90_DOUBLE,(/idt/), idtime)
 
-  ierr=NF90_DEF_VAR(ncid,'elevation_a',NF90_FLOAT,(/idx,idy,idt/), idampl)
-    ierr=NF90_PUT_ATT(ncid,idampl,'coordinates','latitude longitude')
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_a',NF90_FLOAT,(/idx,idy,idt/), idampl)
+    ierr=NF90_PUT_ATT(ncid,idampl,'coordinates','nav_lon nav_lat')
     ierr=NF90_PUT_ATT(ncid,idampl,'standard_name','Amplitude')
     ierr=NF90_PUT_ATT(ncid,idampl,'units','m')
     ierr=NF90_PUT_ATT(ncid,idampl,'_FillValue',spval)
 
-  ierr=NF90_DEF_VAR(ncid,'elevation_G',NF90_FLOAT,(/idx,idy,idt/), idphas)
-    ierr=NF90_PUT_ATT(ncid,idphas,'coordinates','latitude longitude')
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_G',NF90_FLOAT,(/idx,idy,idt/), idphas)
+    ierr=NF90_PUT_ATT(ncid,idphas,'coordinates','nav_lon nav_lat')
     ierr=NF90_PUT_ATT(ncid,idphas,'standard_name','Phase')
     ierr=NF90_PUT_ATT(ncid,idphas,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idphas,'_FillValue',spval)
