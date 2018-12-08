@@ -12,7 +12,7 @@ MODULE tide
 
    INTEGER, PARAMETER ::   &
        jpmax_harmo = 20,   &      ! maximum number of harmonic
-        wp=8
+       wp=8
 
    REAL(wp) ::             &  !:
       rpi = 3.141592653589793_wp           ,  &  !: pi
