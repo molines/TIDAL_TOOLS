@@ -34,7 +34,7 @@ surdetermine.o: surdetermine.F90
 
 
 clean:
-	@\rm -rf  *~
+	@\rm -rf  *~ *.o  *.mod
 	@cd $(BINDIR) ; \rm -f  $(EXEC)
 
 
