@@ -1,0 +1,39 @@
+!!
+!! namelist for program tide_ana.f90
+!!
+!! analysis_param
+!!
+!! moor              = mooring (TRUE) or 2D field (FALSE)
+!! ln_short          = variable type, short (TRUE) or float (FALSE)
+!! name_var          = variable to be analysed
+!! name_var_out_x    = variable output name
+!! name_var_out_y    = variable output name
+!! tsamp             = sampling period
+!! r_ave             = 0 (instantaneous field) or -0.5 (averaged)
+!! ncfile_harm       = output file name
+!!
+&analysis_param
+  moor              = .FALSE.
+  ln_short          = .FALSE.
+  name_var          = 'sossheig'
+  name_var_out_x    = '_x_elev'
+  name_var_out_y    = '_y_elev'
+  tsamp             = 3600.d0
+  r_ave             = -0.5
+  ncfile_harm       = 'res_harm_ssh.nc'
+/
+!!
+!! prediction_param
+!!
+!! name_var          = variable to be analysed
+!! tsamp             = sampling period
+!! ncfile_harm       = harmonic data file
+!! ncfile_out        = prediction output file
+!!
+&prediction_param
+  name_var          = 'sossheig'
+  long_name_var     = 'Sea Surface height from tidal prediction'
+  var_units         = 'meters'
+  ncfile_harm       = 'res_harm_ssh.nc'
+  ncfile_out        = 'predict_ssh.nc'
+/
