@@ -261,7 +261,7 @@ PROGRAM tid_harm_ana
   DO jj = 1, npjout
      DO ji = 1, npiout
         nun=0
-        DO jn = 1, npconst
+        DO jn = 1, jpconst
            DO jc = 1,2
               nun = nun + 1
               TAB4(nun)=dana_temp(ji,jj,nun)
@@ -271,7 +271,7 @@ PROGRAM tid_harm_ana
         CALL SUR_DETERMINE(0)
 
         ! Fill output array
-        DO jn = 1, npconst
+        DO jn = 1, jpconst
            dana_amp(ji,jj,jn,1)= TAB7((jn-1)*2+1)
            dana_amp(ji,jj,jn,2)=-TAB7((jn-1)*2+2)
         END DO
@@ -284,7 +284,7 @@ PROGRAM tid_harm_ana
   !-------------
 
   IF (ln_moor) THEN
-     DO jn = 1, npconst
+     DO jn = 1, jpconst
         dl_amp = SQRT(dana_amp(1,1,jn,1)**2+dana_amp(1,1,jn,2)**2) ! Amplitude
         dl_ph  = ATAN2(-dana_amp(1,1,jn,2)/dl_amp,dana_amp(1,1,jn,1)/dl_amp)/rad ! Phase
         PRINT *, 'constituent name / Period (hour) / amplitude / phase (deg)'
