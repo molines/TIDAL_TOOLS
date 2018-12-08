@@ -13,14 +13,14 @@
 !! ncfile_harm       = output file name
 !!
 &analysis_param
-  moor              = .FALSE.
+  ln_moor           = .FALSE.
   ln_short          = .FALSE.
-  name_var          = 'sossheig'
-  name_var_out_x    = '_x_elev'
-  name_var_out_y    = '_y_elev'
-  tsamp             = 3600.d0
-  r_ave             = -0.5
-  ncfile_harm       = 'res_harm_ssh.nc'
+  cn_var_in         = 'sossheig'
+  cn_var_out_x      = '_x_elev'
+  cn_var_out_y      = '_y_elev'
+  dn_tsamp          = 3600.d0
+  dn_ave            = -0.5
+  cn_fharm          = 'res_harm_ssh.nc'
 /
 !!
 !! prediction_param
