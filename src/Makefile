@@ -4,7 +4,7 @@ include  make.macro
 BINDIR = ../bin
 VPATH = $(BINDIR)
 
-EXEC = tid_conv_ri tid_conv_ag  # tide_predict tide_ana tide_ana_ssh0
+EXEC = tid_conv_ri tid_conv_ag   tide_predict tide_ana tide_ana_ssh0
 
 
 all : $(EXEC)
