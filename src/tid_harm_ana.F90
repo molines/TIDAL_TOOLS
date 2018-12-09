@@ -217,6 +217,7 @@ PROGRAM tid_harm_ana
   WRITE(6,*)
   CALL FLUSH(6)
   !MBK
+
   DO jfil=1,nfiles
      cf_in=cf_lst(jfil)
      ! START LOOP ON INPUT FILES HERE
@@ -323,9 +324,9 @@ PROGRAM tid_harm_ana
   PRINT *,''
 
   ! Matrix inversion
-  NBINCO   = 2*jpconst
-  NBSPARSE = nsp
-  CALL SUR_DETERMINE(1)
+  nbinco   = 2*jpconst
+  nbsparse = nsp
+  CALL sur_determine(kinit=1)
 
   ! Find solution for each point
   DO jj = 1, npjout
@@ -338,7 +339,7 @@ PROGRAM tid_harm_ana
            ENDDO
         ENDDO
 
-        CALL SUR_DETERMINE(0)
+        CALL sur_determine(kinit=0)
 
         ! Fill output array
         DO jn = 1, jpconst

@@ -37,9 +37,9 @@ MODULE surdetermine
 
 CONTAINS
 
-  SUBROUTINE SUR_DETERMINE(kinit)
+  SUBROUTINE sur_determine(kinit)
     !!---------------------------------------------------------------------
-    !!                  ***  ROUTINE SUR_DETERMINE  ***
+    !!                  ***  ROUTINE sur_determine  ***
     !!
     !! ** Purpose :  Sparse Matrix inverter 
     !!
