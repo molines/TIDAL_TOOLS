@@ -24,8 +24,8 @@ PROGRAM tid_harm_ana
   INTEGER(KIND=4), DIMENSION(3) :: id_dim
   INTEGER(KIND=4) :: id_var, id_vart, id_varx, id_vary, id_var_lon, id_var_lat
   INTEGER(KIND=4) :: ijul0, ijuli, ijule
-  INTEGER(KIND=4) :: narg, iargc, init, ixtype
-  INTEGER(KIND=4) :: npi, npj, npt, npiout, npjout
+  INTEGER(KIND=4) :: narg, iargc, ijarg, init, ixtype, inum=20
+  INTEGER(KIND=4) :: npi, npj, npt, npiout, npjout, nfiles
   INTEGER(KIND=4) :: ncid, istatus
   INTEGER(KIND=4) :: iyy, imm, idd, ihh, imn, isec
   INTEGER(KIND=4) :: iyye, imme, idde
@@ -44,11 +44,16 @@ PROGRAM tid_harm_ana
   REAL(8), DIMENSION(:,:,:,:), ALLOCATABLE :: dana_amp
 
   CHARACTER(len=4  ), DIMENSION(jpmax_harmo) :: cname
+  CHARACTER(len=120 ), DIMENSION(:), ALLOCATABLE :: cf_lst
   CHARACTER(len=120)                         :: cn_fharm, cf_in
-  CHARACTER(len=33 )                         :: ca_units, cl_dum
+  CHARACTER(len=120)                         :: cf_namli
+  CHARACTER(len=33 )                         :: ca_units, cldum
   CHARACTER(len=20 )                         :: cn_v_in, cn_v_out_x, cn_v_out_y
+  CHARACTER(len=10 )                         :: cdim_x='x', cdim_y='y', cdim_t='time_counter'
+  CHARACTER(len=10 )                         :: cv_time='time_counter'
+  CHARACTER(len=10 )                         :: cv_lon='nav_lon', cv_lat='nav_lat'
 
-  LOGICAL :: ln_moor, l_exist, ln_short
+  LOGICAL :: ln_moor, l_exist, ln_short, lnc4=.FALSE.
 
   NAMELIST /analysis_param/ ln_moor, ln_short, &
        cn_v_in, cn_v_out_x, cn_v_out_y, cn_fharm ,&
@@ -61,27 +66,69 @@ PROGRAM tid_harm_ana
   !! Software governed by the CeCILL licence (Licence/TIDAL_TOOLS_CeCILL.txt)
   !!----------------------------------------------------------------------
   !!----------------------------------------------------------------------
-  
+  cf_namli='namelist'
+  cn_fharm='res_harm.nc'
+  narg = iargc()
+
+  IF ( narg == 0 ) THEN
+     PRINT *,' usage :  tid_harm_ana -l LST-files [-o HARM-file] [-n NAMLIST-file] [-nc4]'
+     PRINT *,'      '
+     PRINT *,'     PURPOSE :'
+     PRINT *,'       Perform the harmonic analysis on the corresponding time series '
+     PRINT *,'       represented by the list of files given as arguments.' 
+     PRINT *,'      '
+     PRINT *,'     ARGUMENTS :'
+     PRINT *,'       -l LST-files : a blank separated list of input files' 
+     PRINT *,'      '
+     PRINT *,'     OPTIONS :'
+     PRINT *,'       -n NAMLIST-file : Input namelist file. Default is ''namelist'' ' 
+     PRINT *,'       -o HARM-file : Name of the output file with analysed harmonic '
+     PRINT *,'           constituents. Default is  res_harm.nc, or set in the namelist.'
+     PRINT *,'       -nc4 : output file is in Netcdf4/Hdf5 with chunking and deflation'
+     PRINT *,'      '
+     PRINT *,'     REQUIRED FILES :'
+     PRINT *,'        '
+     PRINT *,'     OUTPUT : '
+     PRINT *,'       netcdf file : ', TRIM(cn_fharm) 
+     PRINT *,'       '
+     PRINT *,'     SEE ALSO :'
+     PRINT *,'      ' 
+     PRINT *,'      '
+     STOP
+  ENDIF
+
+  ijarg = 1 
+  DO WHILE ( ijarg <= narg )
+     CALL getarg(ijarg, cldum ) ; ijarg=ijarg+1
+     SELECT CASE ( cldum )
+     CASE ( '-l'   ) ; CALL GetFileList 
+
+        ! option
+     CASE ( '-n'   ) ; CALL getarg(ijarg, cf_namli   ) ; ijarg=ijarg+1
+     CASE ( '-o'   ) ; CALL getarg(ijarg, cn_fharm   ) ; ijarg=ijarg+1
+     CASE ( '-nc4' ) ; lnc4 = .TRUE.
+     CASE DEFAULT    ; PRINT *, ' ERROR : ', TRIM(cldum),' : unknown option.'; STOP 1
+     END SELECT
+  ENDDO
 
   ! 0. Read the namelist
   ! -------------------------------
-  INQUIRE( FILE = 'namelist', EXIST = l_exist )
+  INQUIRE( FILE = cf_namli, EXIST = l_exist )
 
   IF ( .NOT. l_exist ) STOP 'Namelist not found'
 
-  OPEN( 20, file = 'namelist', &
-       status = 'old'       , &
-       form   = 'formatted' )
-  READ( 20, NML = analysis_param )
-  CLOSE( 20 )
+  OPEN( inum, file = 'namelist', status = 'old' , form   = 'formatted' )
+  READ( inum, NML = analysis_param )
+  CLOSE( inum )
 
+  ! Some Control Prints
   PRINT *, ' '
   PRINT *, 'Variable to be analysed = ', TRIM(cn_v_in)
   PRINT *, 'Sampling period = ', dn_tsamp
   PRINT *, 'Output file name = ', TRIM(cn_fharm)
   PRINT *, ' '
 
-
+  ! List of tidal harmonics to use in the analysis
   cname(1 )='M2'
   cname(2 )='N2'
   cname(3 )='S2'
@@ -103,17 +150,7 @@ PROGRAM tid_harm_ana
   cname(19)='L2'
   cname(20)='T2'
 
-  narg = iargc()
-  IF (narg<1) THEN
-     PRINT *, 'Need at least one input file'
-     PRINT *, 'tide_ana usage:' 
-     PRINT *, './tide_ana file_list'
-     PRINT *, 'EXEMPLE: ./tide_ana BISCAY-T05-y2008*_HF_gridT.nc'
-     PRINT *, 'Output harmonic file in res_harm.nc'
-     STOP
-  ENDIF
-
-  CALL getarg (1, cf_in)
+  cf_in=cf_lst(1)
 
   CALL read_file
 
@@ -152,8 +189,8 @@ PROGRAM tid_harm_ana
   WRITE(6,*)
   CALL FLUSH(6)
   !MBK
-  DO jfil=1,narg
-     CALL getarg (jfil, cf_in)
+  DO jfil=1,nfiles
+     cf_in=cf_lst(jfil)
      ! START LOOP ON INPUT FILES HERE
      ! open file again
      istatus = NF90_OPEN (cf_in, NF90_NOWRITE, ncid)
@@ -184,7 +221,7 @@ PROGRAM tid_harm_ana
         STOP
      ELSE
         istatus = NF90_GET_ATT(ncid, id_var, "missing_value", dmissval)
-        istatus = NF90_INQUIRE_VARIABLE(ncid, id_var, cl_dum, ixtype)
+        istatus = NF90_INQUIRE_VARIABLE(ncid, id_var, cldum, ixtype)
         IF (ixtype==NF90_SHORT) THEN 
            ln_short=.TRUE.
            istatus = NF90_GET_ATT(ncid, id_var, "add_offset", dadd_offset)
@@ -296,9 +333,17 @@ PROGRAM tid_harm_ana
 
 CONTAINS
 
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
   SUBROUTINE read_file
+    !!---------------------------------------------------------------------
+    !!                  ***  ROUTINE read_file  ***
+    !!
+    !! ** Purpose :  Read input file 
+    !!
+    !! ** Method  :  Netcdf get var etc..
+    !!
+    !!----------------------------------------------------------------------
+    ! Local variables :
+    INTEGER(KIND=4) :: istatus
 
     ! Read input file
     !----------------- 
@@ -308,7 +353,7 @@ CONTAINS
        STOP
     ENDIF
 
-    istatus=NF90_INQ_DIMID (ncid,'x',id_var)
+    istatus=NF90_INQ_DIMID (ncid,cdim_x,id_var)
     IF (istatus == NF90_NOERR) THEN 
        ln_moor=.FALSE.
     ELSE
@@ -317,31 +362,26 @@ CONTAINS
 
     ! Get mooring indice on global grid
 
-    istatus=NF90_INQ_DIMID (ncid,'time',id_var)
+    istatus=NF90_INQ_DIMID (ncid,cdim_t,id_var)
     IF (istatus /= NF90_NOERR) THEN
-       istatus=NF90_INQ_DIMID (ncid,'time_counter',id_var)
-       IF (istatus /= NF90_NOERR) THEN
-          PRINT *, 'Pb with time-dimension in file: ', cf_in
-          STOP
-       ENDIF
+       PRINT *, 'Pb with time-dimension in file: ', cf_in
+       STOP
     ENDIF
     istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npt)
 
-    istatus = NF90_INQ_VARID(ncid,'time',id_var)
+    istatus = NF90_INQ_VARID(ncid,cv_time,id_var)
     IF (istatus /= NF90_NOERR) THEN
-       istatus = NF90_INQ_VARID(ncid,'time_counter',id_var)
-       IF (istatus /= NF90_NOERR) THEN
-          PRINT *, 'Pb with time-dimension in file: ', cf_in
-          STOP
-       ENDIF
+       PRINT *, 'Pb with time-dimension in file: ', cf_in
+       STOP
     ENDIF
+
     ALLOCATE(dg_time(npt))
     istatus = NF90_GET_VAR(ncid,id_var, dg_time)
     istatus = NF90_GET_ATT(ncid, id_var, "units", ca_units)
     READ(ca_units,7000) iyy, imm, idd, ihh, imn, isec
 7000 FORMAT('seconds since ', I4.4,'-',I2.2,'-',I2.2,' ',I2.2,':',I2.2,':',I2.2)
 
-    ijuli = julday(imm,idd,iyy)             ! Julian day of time origin in data file
+    ijuli = julday(imm,idd,iyy)                ! Julian day of time origin in data file
     ijul0 = ijuli + FLOOR(dg_time(1)/86400.d0) ! Julian day of first time dump in file
     !rbb
     PRINT*,dg_time(1)/86400.d0
@@ -354,53 +394,58 @@ CONTAINS
 
     IF (ln_moor) THEN
        ALLOCATE(dlon_r4(1,1), dlat_r4(1,1))
-       istatus = NF90_INQ_VARID(ncid,'longitude',id_var)
-       istatus = NF90_GET_VAR(ncid,id_var, dlon_r4)
-       istatus = NF90_INQ_VARID(ncid,'latitude',id_var)
-       istatus = NF90_GET_VAR(ncid,id_var, dlat_r4)
+       istatus = NF90_INQ_VARID(ncid, cv_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlon_r4)
+       istatus = NF90_INQ_VARID(ncid, cv_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlat_r4)
     ELSE
-       istatus=NF90_INQ_DIMID (ncid,'x',id_var)
-       istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npi)
-       istatus=NF90_INQ_DIMID (ncid,'y',id_var)
-       istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npj)
-       ALLOCATE(dlon_r4(npi,npj), dlat_r4(npi,npj))
-       istatus = NF90_INQ_VARID(ncid,'nav_lon',id_var)
-       istatus = NF90_GET_VAR(ncid,id_var, dlon_r4)
-       istatus = NF90_INQ_VARID(ncid,'nav_lat',id_var)
-       istatus = NF90_GET_VAR(ncid,id_var, dlat_r4)
+       istatus=NF90_INQ_DIMID (ncid, cdim_x, id_var)  ; istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npi)
+       istatus=NF90_INQ_DIMID (ncid, cdim_y, id_var)  ; istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npj)
+       ALLOCATE( dlon_r4(npi,npj), dlat_r4(npi,npj) )
+       istatus = NF90_INQ_VARID(ncid, cv_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlon_r4)
+       istatus = NF90_INQ_VARID(ncid, cv_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlat_r4)
     ENDIF
 
     istatus = NF90_CLOSE(ncid)
 
   END SUBROUTINE read_file
 
-  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
   SUBROUTINE write_file
-
-    !rbb istatus = NF90_CREATE(cn_fharm, NF90_CLOBBER, ncid)
-    istatus = NF90_CREATE(cn_fharm, NF90_64BIT_OFFSET, ncid)
+    !!---------------------------------------------------------------------
+    !!                  ***  ROUTINE write_file  ***
+    !!
+    !! ** Purpose :  Create netcdf output file and fill it with tidal harmonics
+    !!
+    !! ** Method  :  NetCdf 
+    !!
+    !!----------------------------------------------------------------------
+    ! local variables
+    INTEGER(KIND=4) :: istatus
+    !!----------------------------------------------------------------------
+    IF ( lnc4 ) THEN
+       istatus = NF90_CREATE(cn_fharm, NF90_NETCDF4, ncid)
+    ELSE
+       istatus = NF90_CREATE(cn_fharm, NF90_64BIT_OFFSET, ncid)
+    ENDIF
 
     IF (ln_moor) THEN
        npiout=1
        npjout=1
-       istatus = NF90_DEF_DIM(ncid,'longitude',npiout, id_dim(1))
-       istatus = NF90_DEF_VAR(ncid,'longitude', NF90_FLOAT, id_dim(1), id_var_lon)
+       istatus = NF90_DEF_DIM(ncid, cdim_x,      npiout, id_dim(1))
+       istatus = NF90_DEF_VAR(ncid, cv_lon,      NF90_FLOAT, id_dim(1), id_var_lon)
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
-       istatus = NF90_DEF_DIM(ncid,'latitude', npjout, id_dim(2))
-       istatus = NF90_DEF_VAR(ncid,'latitude', NF90_FLOAT, id_dim(2), id_var_lat)
+       istatus = NF90_DEF_DIM(ncid, cdim_y,      npjout, id_dim(2))
+       istatus = NF90_DEF_VAR(ncid, cv_lat,      NF90_FLOAT, id_dim(2), id_var_lat)
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','latitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
     ELSE
        npiout=npi
        npjout=npj
-       istatus = NF90_DEF_DIM(ncid,'x',npiout, id_dim(1))
-       istatus = NF90_DEF_DIM(ncid,'y',npjout, id_dim(2))
-       istatus = NF90_DEF_VAR(ncid,'nav_lon', NF90_FLOAT, id_dim(1:2), id_var_lon)
+       istatus = NF90_DEF_DIM(ncid, cdim_x,     npiout, id_dim(1))
+       istatus = NF90_DEF_DIM(ncid, cdim_y,     npjout, id_dim(2))
+       istatus = NF90_DEF_VAR(ncid, cv_lon,     NF90_FLOAT, id_dim(1:2), id_var_lon)
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
-       istatus = NF90_DEF_VAR(ncid,'nav_lat', NF90_FLOAT, id_dim(1:2), id_var_lat)
+       istatus = NF90_DEF_VAR(ncid, cv_lat,     NF90_FLOAT, id_dim(1:2), id_var_lat)
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','latitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
     ENDIF
@@ -422,8 +467,8 @@ CONTAINS
     istatus = NF90_PUT_VAR(ncid, id_var_lon,dlon_r4)
     istatus = NF90_PUT_VAR(ncid, id_var_lat,dlat_r4)
     DO jn = 1, jpconst
-       istatus = NF90_PUT_VAR(ncid, id_varhx(jn),dana_amp(:,:,jn,1))
-       istatus = NF90_PUT_VAR(ncid, id_varhy(jn),dana_amp(:,:,jn,2))
+       istatus = NF90_PUT_VAR(ncid, id_varhx(jn), dana_amp(:,:,jn,1))
+       istatus = NF90_PUT_VAR(ncid, id_varhy(jn), dana_amp(:,:,jn,2))
     END DO
 
     istatus = NF90_CLOSE(ncid)
@@ -432,33 +477,33 @@ CONTAINS
 
 
   FUNCTION julday(kmm,kid,kiyyy)
-    !CC ------------------------------------------------------------------
-    !CC                 FUNCTION JULDAY
-    !CC                 ***************
-    !CC   PURPOSE:
-    !CC   --------
-    !CC    This routine returns the julian day number which begins at noon
-    !CC  of the calendar date specified by month kmm, day kid, and year kiyyy.
-    !CC  positive year signifies a.d.; negative, b.c.  (remember that the
-    !CC  year after 1 b.c. was 1 a.d.)
-    !CC  routine handles changeover to gregorian calendar on oct. 15, 1582.
-    !CC
-    !C    METHOD:
-    !C    -------
-    !C     This routine comes directly from the Numerical Recipe Book,
-    !C   press et al., numerical recipes, cambridge univ. press, 1986.
-    !C
-    !C    ARGUMENTS:
-    !C    ----------
-    !C     kmm     : input, corresponding month
-    !C     kid     : input, corresponding day
-    !C     kiyyy   : input, corresponding year, positive if a.d, negative b.c.
-    !C      
-    !C     
-    !C   AUTHOR:
-    !C   ------
-    !C     1998: J.M. Molines for the Doctor form.
-    !CC -----------------------------------------------------------------
+    ! ------------------------------------------------------------------
+    !                 FUNCTION JULDAY
+    !                 ***************
+    !   PURPOSE:
+    !   --------
+    !    This routine returns the julian day number which begins at noon
+    !  of the calendar date specified by month kmm, day kid, and year kiyyy.
+    !  positive year signifies a.d.; negative, b.c.  (remember that the
+    !  year after 1 b.c. was 1 a.d.)
+    !  routine handles changeover to gregorian calendar on oct. 15, 1582.
+    !
+    !    METHOD:
+    !    -------
+    !     This routine comes directly from the Numerical Recipe Book,
+    !   press et al., numerical recipes, cambridge univ. press, 1986.
+    !
+    !    ARGUMENTS:
+    !    ----------
+    !     kmm     : input, corresponding month
+    !     kid     : input, corresponding day
+    !     kiyyy   : input, corresponding year, positive if a.d, negative b.c.
+    !      
+    !     
+    !   AUTHOR:
+    !   ------
+    !     1998: J.M. Molines for the Doctor form.
+    !-----------------------------------------------------------------
     !
     ! ... Declarations
     !
@@ -489,33 +534,33 @@ CONTAINS
     END IF
     RETURN
   END FUNCTION julday
-  !###
+
   SUBROUTINE caldat(kjulian,kmm,kid,kiyyy)
-    !CC -------------------------------------------------------------------
-    !CC                   SUBROUTINE CALDAT
-    !CC                   *****************
-    !CC   PURPOSE:
-    !CC   --------
-    !CC    This routine convert a julian day in calendar date.
-    !CC    It is the inverse of the function julday.  
-    !CC
-    !C    METHOD:
-    !C    -------
-    !C     This routine comes directly from the Numerical Recipe Book,
-    !C   press et al., numerical recipes, cambridge univ. press, 1986.
-    !C
-    !C    ARGUMENTS:
-    !C    ----------
-    !C     kjulian : input julian day number
-    !C     kmm     : output, corresponding month
-    !C     kid     : output, corresponding day
-    !C     kiyyy   : output, corresponding year, positive if a.d, negative b.c.
-    !C      
-    !C    
-    !C   AUTHOR:
-    !C   ------
-    !C     1998: J.M. Molines for the Doctor form.
-    !CC------------------------------------------------------------------------
+    ! -------------------------------------------------------------------
+    !                   SUBROUTINE CALDAT
+    !                   *****************
+    !   PURPOSE:
+    !   --------
+    !    This routine convert a julian day in calendar date.
+    !    It is the inverse of the function julday.  
+    !
+    !    METHOD:
+    !    -------
+    !     This routine comes directly from the Numerical Recipe Book,
+    !   press et al., numerical recipes, cambridge univ. press, 1986.
+    !
+    !    ARGUMENTS:
+    !    ----------
+    !     kjulian : input julian day number
+    !     kmm     : output, corresponding month
+    !     kid     : output, corresponding day
+    !     kiyyy   : output, corresponding year, positive if a.d, negative b.c.
+    !      
+    !    
+    !   AUTHOR:
+    !   ------
+    !     1998: J.M. Molines for the Doctor form.
+    !------------------------------------------------------------------------
     ! ... Declarations:
     !
     IMPLICIT NONE
@@ -548,5 +593,35 @@ CONTAINS
     IF ( kiyyy .LE. 0 ) kiyyy = kiyyy - 1
     RETURN
   END SUBROUTINE caldat
+
+
+  SUBROUTINE GetFileList
+    !!---------------------------------------------------------------------
+    !!                  ***  ROUTINE GetFileList  ***
+    !!
+    !! ** Purpose :  Set up a file list given on the command line as 
+    !!               blank separated list
+    !!
+    !! ** Method  :  Scan the command line until a '-' is found
+    !!----------------------------------------------------------------------
+    INTEGER (KIND=4)  :: ji
+    INTEGER (KIND=4)  :: icur
+    !!----------------------------------------------------------------------
+    !!
+    nfiles=0
+    ! need to read a list of file ( number unknow ) 
+    ! loop on argument till a '-' is found as first char
+    icur=ijarg                          ! save current position of argument number
+    DO ji = icur, narg                  ! scan arguments till - found
+       CALL getarg ( ji, cldum )
+       IF ( cldum(1:1) /= '-' ) THEN ; nfiles = nfiles+1
+       ELSE                          ; EXIT
+       ENDIF
+    ENDDO
+    ALLOCATE (cf_lst(nfiles) )
+    DO ji = icur, icur + nfiles -1
+       CALL getarg(ji, cf_lst( ji -icur +1 ) ) ; ijarg=ijarg+1
+    END DO
+  END SUBROUTINE GetFileList
 
 END PROGRAM tid_harm_ana
