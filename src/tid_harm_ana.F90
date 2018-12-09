@@ -31,15 +31,19 @@ PROGRAM tid_harm_ana
   INTEGER(KIND=4) :: iyye, imme, idde
   INTEGER(KIND=4) :: nhc, nhan, nsp, nun
 
-  INTEGER(KIND=2), DIMENSION(:,:,:), ALLOCATABLE :: int2tabglo
+  INTEGER(KIND=2), DIMENSION(:,:), ALLOCATABLE :: int2tabglo
+  INTEGER(KIND=2), DIMENSION(:,:), ALLOCATABLE :: mask
 
   REAL(8) :: dn_tsamp ! Sampling period in seconds
   REAL(8) :: dscale_factor =1.d0, dadd_offset =0.d0, dmissval=1.d20
   REAL(8) :: dl_temp, dl_time, dl_amp, dl_ph, dl_hfrac, dn_ave
+  REAL(8) :: dareatot
+
   REAL(8), DIMENSION(jpconst)              :: domega, dft, dut, dvt, dvt0
   REAL(8), DIMENSION(:),       ALLOCATABLE :: dg_time
+  REAL(8), DIMENSION(:,:),     ALLOCATABLE :: darea2d, de1t, de2t
   REAL(8), DIMENSION(:,:),     ALLOCATABLE :: dlon_r4, dlat_r4
-  REAL(8), DIMENSION(:,:,:),   ALLOCATABLE :: dtmp_r4
+  REAL(8), DIMENSION(:,:),     ALLOCATABLE :: dtmp_r4
   REAL(8), DIMENSION(:,:,:),   ALLOCATABLE :: dana_temp
   REAL(8), DIMENSION(:,:,:,:), ALLOCATABLE :: dana_amp
 
@@ -47,13 +51,22 @@ PROGRAM tid_harm_ana
   CHARACTER(len=120 ), DIMENSION(:), ALLOCATABLE :: cf_lst
   CHARACTER(len=120)                         :: cn_fharm, cf_in
   CHARACTER(len=120)                         :: cf_namli
-  CHARACTER(len=33 )                         :: ca_units, cldum
-  CHARACTER(len=20 )                         :: cn_v_in, cn_v_out_x, cn_v_out_y
-  CHARACTER(len=10 )                         :: cdim_x='x', cdim_y='y', cdim_t='time_counter'
-  CHARACTER(len=10 )                         :: cv_time='time_counter'
-  CHARACTER(len=10 )                         :: cv_lon='nav_lon', cv_lat='nav_lat'
+  CHARACTER(len=120)                         :: ca_units, cldum
+  CHARACTER(len=120)                         :: cn_v_in, cn_v_out_x, cn_v_out_y
+  CHARACTER(len=120)                         :: cdim_x='x', cdim_y='y', cdim_t='time_counter'
+  CHARACTER(len=120)                         :: cv_time='time_counter'
+  CHARACTER(len=120)                         :: cv_lon='nav_lon', cv_lat='nav_lat'
+  CHARACTER(len=120)                         :: cf_hgr='mesh_hgr.nc'
+  CHARACTER(len=120)                         :: cf_msk='mask.nc'
 
-  LOGICAL :: ln_moor, l_exist, ln_short, lnc4=.FALSE.
+  CHARACTER(LEN=1)                           :: cn_cgrid='T'  ! either one of T U V or F
+
+  LOGICAL :: ln_moor
+  LOGICAL :: l_exist
+  LOGICAL :: ln_short
+  LOGICAL :: lnc4=.FALSE.
+  LOGICAL :: lzmean=.FALSE.
+  LOGICAL :: lchk=.FALSE.
 
   NAMELIST /analysis_param/ ln_moor, ln_short, &
        cn_v_in, cn_v_out_x, cn_v_out_y, cn_fharm ,&
@@ -72,6 +85,7 @@ PROGRAM tid_harm_ana
 
   IF ( narg == 0 ) THEN
      PRINT *,' usage :  tid_harm_ana -l LST-files [-o HARM-file] [-n NAMLIST-file] [-nc4]'
+     PRINT *,'        ... [-zeromean]'
      PRINT *,'      '
      PRINT *,'     PURPOSE :'
      PRINT *,'       Perform the harmonic analysis on the corresponding time series '
@@ -85,9 +99,10 @@ PROGRAM tid_harm_ana
      PRINT *,'       -o HARM-file : Name of the output file with analysed harmonic '
      PRINT *,'           constituents. Default is  res_harm.nc, or set in the namelist.'
      PRINT *,'       -nc4 : output file is in Netcdf4/Hdf5 with chunking and deflation'
+     PRINT *,'       -zeromean : subtract spatial mean of the field before analysis.'
      PRINT *,'      '
      PRINT *,'     REQUIRED FILES :'
-     PRINT *,'        '
+     PRINT *,'        If -zeromean option, mesh_hgr and mask files are required.'
      PRINT *,'     OUTPUT : '
      PRINT *,'       netcdf file : ', TRIM(cn_fharm) 
      PRINT *,'       '
@@ -104,12 +119,20 @@ PROGRAM tid_harm_ana
      CASE ( '-l'   ) ; CALL GetFileList 
 
         ! option
-     CASE ( '-n'   ) ; CALL getarg(ijarg, cf_namli   ) ; ijarg=ijarg+1
-     CASE ( '-o'   ) ; CALL getarg(ijarg, cn_fharm   ) ; ijarg=ijarg+1
-     CASE ( '-nc4' ) ; lnc4 = .TRUE.
+     CASE ( '-n'        ) ; CALL getarg(ijarg, cf_namli   ) ; ijarg=ijarg+1
+     CASE ( '-o'        ) ; CALL getarg(ijarg, cn_fharm   ) ; ijarg=ijarg+1
+     CASE ( '-nc4'      ) ; lnc4 = .TRUE.
+     CASE ( '-zeromean' ) ; lzmean = .TRUE.
      CASE DEFAULT    ; PRINT *, ' ERROR : ', TRIM(cldum),' : unknown option.'; STOP 1
      END SELECT
   ENDDO
+
+  ! Sanity check
+  IF (lzmean) THEN
+    lchk = lchk .OR. chkfile(cf_hgr)
+    lchk = lchk .OR. chkfile(cf_msk)
+    IF ( lchk ) STOP
+  ENDIF
 
   ! 0. Read the namelist
   ! -------------------------------
@@ -163,17 +186,22 @@ PROGRAM tid_harm_ana
   !--------------------------
 
   IF (ln_moor) THEN
-     ALLOCATE(dtmp_r4(1,1,1))
+     ALLOCATE(dtmp_r4(1,1))
      ALLOCATE(dana_temp(1,1,2*jpconst))
      ALLOCATE(dana_amp(1,1,jpconst,2))
      npiout=1
      npjout=1
   ELSE
-     ALLOCATE(dtmp_r4(npi,npj,1))
+     ALLOCATE(dtmp_r4(npi,npj))
      ALLOCATE(dana_temp(npi,npj,2*jpconst))
      ALLOCATE(dana_amp(npi,npj,jpconst,2))
      npiout=npi
      npjout=npj
+  ENDIF
+
+! call to ZeroMeanInit must be done after the size of the domain is known
+  IF (lzmean) THEN
+    CALL ZeroMeanInit(cn_cgrid)   ! compute area2d and areatot
   ENDIF
 
   dana_temp(:,:,:) = 0.d0
@@ -226,9 +254,12 @@ PROGRAM tid_harm_ana
            ln_short=.TRUE.
            istatus = NF90_GET_ATT(ncid, id_var, "add_offset", dadd_offset)
            istatus = NF90_GET_ATT(ncid, id_var, "scale_factor", dscale_factor)
-           IF (jfil==1) THEN
-              IF (ln_moor)      ALLOCATE(int2tabglo(1,1,1))
-              IF (.NOT.ln_moor) ALLOCATE(int2tabglo(npi,npj,1))
+           IF (jfil == 1) THEN
+              IF (ln_moor) THEN 
+                 ALLOCATE(int2tabglo(1,1))
+              ELSE 
+                 ALLOCATE(int2tabglo(npi,npj))
+              ENDIF
            ENDIF
         ENDIF
      ENDIF
@@ -239,12 +270,14 @@ PROGRAM tid_harm_ana
            istatus = NF90_GET_VAR(ncid,id_var, int2tabglo, &
                 start = (/ 1, 1, jt /),count = (/ npiout, npjout, 1 /))
            WHERE(int2tabglo .NE. dmissval) dtmp_r4 = int2tabglo*dscale_factor+dadd_offset
-           WHERE(int2tabglo .EQ. dmissval) dtmp_r4 = 0.
+           WHERE(int2tabglo .EQ. dmissval) dtmp_r4 = 0.d0
         ELSE
            istatus = NF90_GET_VAR(ncid,id_var, dtmp_r4, &
                 start = (/ 1, 1, jt /),count = (/ npiout, npjout, 1 /))
-           WHERE(dtmp_r4 .EQ. dmissval) dtmp_r4 = 0.
+           WHERE(dtmp_r4 .EQ. dmissval) dtmp_r4 = 0.d0
         ENDIF
+
+        IF (lzmean ) CALL ZeroMean( dtmp_r4 )
 
         dl_time = dl_time + dn_tsamp
 
@@ -267,10 +300,10 @@ PROGRAM tid_harm_ana
               nsp = nsp + 1
               dl_temp =(     MOD(jc,2) * dft(jn) *COS(domega(jn)*dl_time + dvt0(jn) + dut(jn))  &
                    +(1.-MOD(jc,2))* dft(jn) *SIN(domega(jn)*dl_time + dvt0(jn) + dut(jn)))
-              dana_temp(:,:,nhc) = dana_temp(:,:,nhc) + dl_temp*dtmp_r4(:,:,1)                   
+              dana_temp(:,:,nhc) = dana_temp(:,:,nhc) + dl_temp*dtmp_r4(:,:)                   
               ISPARSE(nsp) = nhan
               JSPARSE(nsp) = nhc
-              SPARSEVALUE(nsp) = dl_temp
+              dsparsevalue(nsp) = dl_temp
            END DO
         END DO
      END DO
@@ -301,7 +334,7 @@ PROGRAM tid_harm_ana
         DO jn = 1, jpconst
            DO jc = 1,2
               nun = nun + 1
-              TAB4(nun)=dana_temp(ji,jj,nun)
+              dtab4(nun)=dana_temp(ji,jj,nun)
            ENDDO
         ENDDO
 
@@ -309,8 +342,8 @@ PROGRAM tid_harm_ana
 
         ! Fill output array
         DO jn = 1, jpconst
-           dana_amp(ji,jj,jn,1)= TAB7((jn-1)*2+1)
-           dana_amp(ji,jj,jn,2)=-TAB7((jn-1)*2+2)
+           dana_amp(ji,jj,jn,1)= dtab7((jn-1)*2+1)
+           dana_amp(ji,jj,jn,2)=-dtab7((jn-1)*2+2)
         END DO
      END DO
   END DO
@@ -623,5 +656,126 @@ CONTAINS
        CALL getarg(ji, cf_lst( ji -icur +1 ) ) ; ijarg=ijarg+1
     END DO
   END SUBROUTINE GetFileList
+
+  SUBROUTINE ZeroMeanInit (cd_cgrid)
+    !!---------------------------------------------------------------------
+    !!                  ***  ROUTINE ZeroMeanInit  ***
+    !!
+    !! ** Purpose :  Initialize the process of computing the mean value of
+    !!               a 2D field 
+    !!
+    !! ** Method  :  Read mesh_hgr, mask file and computes the weights, fixed
+    !!               in time :  aread2d(:,:) and areatot 
+    !!
+    !!----------------------------------------------------------------------
+    CHARACTER(LEN=*), INTENT(in) :: cd_cgrid
+    ! local variable
+    INTEGER(KIND=4) :: icid, id, istatus
+    REAL(KIND=8), DIMENSION(:,:), ALLOCATABLE :: dl_e1, dl_e2
+    CHARACTER(LEN=20) :: cl_ve1, cl_ve2, cl_vmsk
+    ! 
+    !!----------------------------------------------------------------------
+    ! choose variable name according to cd_cgrid  position
+    SELECT CASE ( cd_cgrid )
+    CASE ( 'T' )
+       cl_ve1 = ' e1t'
+       cl_ve2 = ' e2t'
+       cl_vmsk= 'tmask'
+    CASE ( 'U' )
+       cl_ve1 = ' e1u'
+       cl_ve2 = ' e2u'
+       cl_vmsk= 'umask'
+    CASE ( 'V' )
+       cl_ve1 = ' e1v'
+       cl_ve2 = ' e2v'
+       cl_vmsk= 'vmask'
+    CASE ( 'F' )
+       cl_ve1 = ' e1f'
+       cl_ve2 = ' e2f'
+       cl_vmsk= 'fmask'
+    END SELECT
+
+    ! Allocate arrays
+    ALLOCATE ( darea2d(npi,npj), mask(npi,npj) )
+    ALLOCATE ( dl_e1(npi,npj), dl_e2(npi,npj) )
+    ! read horizontal metrics
+    istatus = NF90_OPEN(cf_hgr, NF90_NOWRITE, icid)
+
+    istatus = NF90_INQ_VARID(icid, cl_ve1, id ) 
+    istatus = NF90_GET_VAR(icid, id, dl_e1, start=(/1,1,1/), count=(/npi,npj,1/) )
+
+    istatus = NF90_INQ_VARID(icid, cl_ve2, id ) 
+    istatus = NF90_GET_VAR(icid, id, dl_e2, start=(/1,1,1/), count=(/npi,npj,1/) )
+    istatus = NF90_CLOSE(icid)
+
+    ! read mask
+    istatus = NF90_OPEN(cf_msk, NF90_NOWRITE, icid)
+
+    istatus = NF90_INQ_VARID(icid, cl_vmsk, id ) 
+    istatus = NF90_GET_VAR(icid, id, mask, start=(/1,1,1/), count=(/npi,npj,1/) )
+    istatus = NF90_CLOSE(icid)
+
+    ! compute weights
+    darea2d(:,:) = dl_e1(:,:) * dl_e2(:,:) * mask(:,:)
+    dareatot     = SUM( darea2d )
+
+   DEALLOCATE (dl_e1, dl_e2 )
+  END SUBROUTINE ZeroMeanInit
+
+  SUBROUTINE ZeroMean(dd_tab)
+    !!---------------------------------------------------------------------
+    !!                  ***  ROUTINE ZeroMean  ***
+    !!
+    !! ** Purpose :  Set the mean value of the input/output array to zero
+    !!
+    !! ** Method  :  Ccompute mean value (weighted) and subtract it from the field 
+    !!
+    !!----------------------------------------------------------------------
+    REAL(KIND=8), DIMENSION(:,:), INTENT(inout) :: dd_tab
+    ! local variables
+    REAL(KIND=8)                                :: dl_mean
+    !!----------------------------------------------------------------------
+    dl_mean =  SUM( dd_tab(:,:)*darea2d(:,:) ) / dareatot
+    dd_tab(:,:) = (dd_tab(:,:) - dl_mean ) * mask(:,:) 
+  END SUBROUTINE ZeroMean
+
+  LOGICAL FUNCTION chkfile (cd_file, ld_verbose )
+    !!---------------------------------------------------------------------
+    !!                  ***  FUNCTION chkfile  ***
+    !!
+    !! ** Purpose :  Check if cd_file exists.
+    !!               Return false if it exists, true if it does not
+    !!               Do nothing is filename is 'none'
+    !!
+    !! ** Method  : Doing it this way allow statements such as
+    !!              IF ( chkfile( cf_toto) ) STOP 99  ! missing file
+    !!
+    !!----------------------------------------------------------------------
+    CHARACTER(LEN=*),  INTENT(in) :: cd_file
+    LOGICAL, OPTIONAL, INTENT(in) :: ld_verbose
+
+    INTEGER(KIND=4)               :: ierr
+    LOGICAL                       :: ll_exist, ll_verbose
+    !!----------------------------------------------------------------------
+    IF ( PRESENT(ld_verbose) ) THEN
+       ll_verbose = ld_verbose
+    ELSE
+       ll_verbose = .TRUE.
+    ENDIF
+
+    IF ( TRIM(cd_file) /= 'none')  THEN
+       INQUIRE (file = TRIM(cd_file), EXIST=ll_exist)
+
+       IF (ll_exist) THEN
+          chkfile = .false.
+       ELSE
+          IF ( ll_verbose ) PRINT *, ' File ',TRIM(cd_file),' is missing '
+          chkfile = .true.
+       ENDIF
+    ELSE
+       chkfile = .false.  ! 'none' file is not checked
+    ENDIF
+
+  END FUNCTION chkfile
 
 END PROGRAM tid_harm_ana

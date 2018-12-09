@@ -252,7 +252,7 @@
                   ana_temp(:,:,nhc) = ana_temp(:,:,nhc) + ztemp*tmp_r4(:,:,1)                   
                   ISPARSE(ksp) = nhan
                   JSPARSE(ksp) = nhc
-                  SPARSEVALUE(ksp) = ztemp
+                  dsparsevalue(ksp) = ztemp
                END DO
             END DO
          END DO
@@ -283,7 +283,7 @@
                DO n = 1, nconst
                  DO jc = 1,2
                     kun = kun + 1
-                    TAB4(kun)=ana_temp(ji,jj,kun)
+                    dtab4(kun)=ana_temp(ji,jj,kun)
                  ENDDO
                ENDDO
 
@@ -291,8 +291,8 @@
 
                ! Fill output array
                DO n = 1, nconst
-                 ana_amp(ji,jj,n,1)= TAB7((n-1)*2+1)
-                 ana_amp(ji,jj,n,2)=-TAB7((n-1)*2+2)
+                 ana_amp(ji,jj,n,1)= dtab7((n-1)*2+1)
+                 ana_amp(ji,jj,n,2)=-dtab7((n-1)*2+2)
                END DO
             END DO
          END DO

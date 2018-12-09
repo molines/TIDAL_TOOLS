@@ -1,134 +1,158 @@
 MODULE surdetermine 
+  !!======================================================================
+  !!                     ***  MODULE  surdetermin  ***
+  !! Provide  routines for inversion of sparse matrix
+  !!=====================================================================
+  !! History : 1.  12/2018 : J.M. Moline from TIDE Mercator adn ???
+  !!----------------------------------------------------------------------
 
+  !!----------------------------------------------------------------------
+  !!   routines      : description
+  !!----------------------------------------------------------------------
+  !!  SUR_DETERMINE : 
+  !!----------------------------------------------------------------------
   IMPLICIT NONE
-  PUBLIC
 
-  INTEGER, PARAMETER :: NBINCOMAX = 50 
-  INTEGER, PARAMETER :: DIMSPARSE = NBINCOMAX*4000*24
-  INTEGER, PARAMETER :: wp=8
+  INTEGER(KIND=4), PARAMETER :: jp_bincomax = 50 
+  INTEGER(KIND=4), PARAMETER :: jp_dimsparse = jp_bincomax*4000*24
 
-  INTEGER :: NBSPARSE, NBINCO
-  REAL(wp), DIMENSION(DIMSPARSE) :: SPARSEVALUE
-  INTEGER, DIMENSION(DIMSPARSE) :: JSPARSE , ISPARSE
+  PUBLIC  SUR_DETERMINE
+  INTEGER(KIND=4), PUBLIC, DIMENSION(jp_dimsparse) :: JSPARSE , ISPARSE
+  INTEGER(KIND=4), PUBLIC                          :: nbsparse, nbinco
 
-  INTEGER, SAVE, DIMENSION(NBINCOMAX) :: JPOS1
-  REAL(wp), DIMENSION(NBINCOMAX) :: TAB4, TAB7
-  REAL(wp), SAVE, DIMENSION(NBINCOMAX,NBINCOMAX) :: TAB3, PILIER
-  REAL(wp), SAVE, DIMENSION(NBINCOMAX) :: PIVOT
+  REAL(KIND=8),    PUBLIC, DIMENSION(jp_dimsparse) :: dsparsevalue
+  REAL(KIND=8),    PUBLIC, DIMENSION(jp_bincomax ) :: dtab4, dtab7
+
+  PRIVATE
+  INTEGER(KIND=4), SAVE, DIMENSION(jp_bincomax)             :: ijpos1
+  REAL(KIND=8),    SAVE, DIMENSION(jp_bincomax,jp_bincomax) :: ds_tab3, ds_pilier
+  REAL(KIND=8),    SAVE, DIMENSION(jp_bincomax)             :: ds_pivot
 
   !!---------------------------------------------------------------------------------
-  !!
-  !!---------------------------------------------------------------------------------
+  !! TIDAL_TOOLS , MEOM 2018
+  !! $Id$
+  !! Copyright (c) 2018, J.-M. Molines
+  !! Software governed by the CeCILL licence (Licence/TIDAL_TOOLSCeCILL.txt)
+  !!----------------------------------------------------------------------
 
 CONTAINS
 
-  SUBROUTINE SUR_DETERMINE(init)
+  SUBROUTINE SUR_DETERMINE(kinit)
+    !!---------------------------------------------------------------------
+    !!                  ***  ROUTINE SUR_DETERMINE  ***
+    !!
+    !! ** Purpose :  Sparse Matrix inverter 
+    !!
+    !! ** Method  :    ???
+    !!
+    !! References :   ???
+    !!----------------------------------------------------------------------
+    INTEGER(KIND=4), INTENT(in) :: kinit
+    ! Local variables
+    INTEGER(KIND=4)                         :: ji_sd, ji1_sd, jii_sd, jj_sd, j1_sd, j2_sd   ! Loop index
+    INTEGER(KIND=4), DIMENSION(jp_bincomax) :: ijpos2, ipivot      
 
-    INTEGER, INTENT(in) :: init
-
-    INTEGER  :: &
-         I_SD, I1_SD, II_SD, J_SD, K1_SD, K2_SD
-    REAL(wp) :: VALEUR1, VALEUR2, X1
-    REAL(wp), DIMENSION(NBINCOMAX) :: TABX, COL1, COL2
-    INTEGER, DIMENSION(NBINCOMAX) :: JPOS2, JPIVOT      
+    REAL(KIND=8)                            :: dl_val1, dl_val2, dl_x1
+    REAL(KIND=8),    DIMENSION(jp_bincomax) :: dl_tabx, dl_col1, dl_col2
     !---------------------------------------------------------------------------------
-
-    IF (init==1) THEN
-       IF(NBSPARSE.GT.DIMSPARSE) STOP 'surdetermine erreur1'
-       IF(NBINCO.GT.NBINCOMAX)THEN
-          PRINT*,'NBINCO   =',NBINCO
-          PRINT*,'NBINCOMAX=',NBINCOMAX
-          STOP 'DONC dans surdetermine erreur2'
+    IF ( kinit == 1 ) THEN
+       IF( nbsparse  > jp_dimsparse) STOP 'surdetermine init error 1'
+       IF(nbinco     > jp_bincomax ) THEN
+          PRINT*,'nbinco      =',nbinco
+          PRINT*,'jp_bincomax =',jp_bincomax
+          STOP '==> surdetermine init erreur2'
        END IF
 
-       TAB3(:,:)=0.e0
+       ds_tab3(:,:)=0.e0
 
-       DO K1_SD=1,NBSPARSE
-          DO K2_SD=1,NBSPARSE 
-             ISPARSE(K2_SD)=ISPARSE(K2_SD)
-             JSPARSE(K2_SD)=JSPARSE(K2_SD)
-             IF(ISPARSE(K2_SD).EQ.ISPARSE(K1_SD)) &
-                  TAB3(JSPARSE(K1_SD),JSPARSE(K2_SD))= &
-                  TAB3(JSPARSE(K1_SD),JSPARSE(K2_SD))  &
-                  +SPARSEVALUE(K1_SD)*SPARSEVALUE(K2_SD)
+       DO j1_sd=1,nbsparse
+          DO j2_sd=1,nbsparse 
+!! JMM 2 next line stupid ??
+             ISPARSE(j2_sd)=ISPARSE(j2_sd)
+             JSPARSE(j2_sd)=JSPARSE(j2_sd)
+!!
+
+             IF(ISPARSE(j2_sd)  == ISPARSE(j1_sd)) THEN
+                  ds_tab3(JSPARSE(j1_sd),JSPARSE(j2_sd))= &
+                  &     ds_tab3(JSPARSE(j1_sd),JSPARSE(j2_sd)) + dsparsevalue(j1_sd)*dsparsevalue(j2_sd)
+             ENDIF
           END DO
        END DO
 
-       DO J_SD=1,NBINCO
-          JPOS1(J_SD)=J_SD
-          JPOS2(J_SD)=J_SD
+       DO jj_sd=1,nbinco
+          ijpos1(jj_sd)=jj_sd
+          ijpos2(jj_sd)=jj_sd
        ENDDO
 
 
-       DO I_SD=1,NBINCO
-          ! recherche du plus grand pivot non nul
-          VALEUR1=ABS(TAB3(I_SD,I_SD))
+       DO ji_sd=1,nbinco
+          ! Look for the larger non null pivot
+          dl_val1=ABS(ds_tab3(ji_sd,ji_sd))
 
-          JPIVOT(I_SD)=I_SD
-          DO J_SD=I_SD,NBINCO
-             VALEUR2=ABS(TAB3(I_SD,J_SD))
-             IF(VALEUR2.GE.VALEUR1) THEN
-                JPIVOT(I_SD)=J_SD
-                VALEUR1=VALEUR2
+          ipivot(ji_sd)=ji_sd
+          DO jj_sd=ji_sd,nbinco
+             dl_val2=ABS(ds_tab3(ji_sd,jj_sd))
+             IF(dl_val2  >= dl_val1) THEN
+                ipivot(ji_sd)=jj_sd
+                dl_val1=dl_val2
              ENDIF
           END DO
 
-          DO I1_SD=1,NBINCO
-             COL1(I1_SD)=TAB3(I1_SD,I_SD)
-             COL2(I1_SD)=TAB3(I1_SD,JPIVOT(I_SD))
-             TAB3(I1_SD,I_SD)=COL2(I1_SD)
-             TAB3(I1_SD,JPIVOT(I_SD))=COL1(I1_SD)
+          DO ji1_sd=1,nbinco
+             dl_col1(ji1_sd) = ds_tab3(ji1_sd,ji_sd)
+             dl_col2(ji1_sd) = ds_tab3(ji1_sd,ipivot(ji_sd))
+
+             ds_tab3(ji1_sd,ji_sd)         = dl_col2(ji1_sd)
+             ds_tab3(ji1_sd,ipivot(ji_sd)) = dl_col1(ji1_sd)
           END DO
 
-          JPOS2(I_SD)=JPOS1(JPIVOT(I_SD))
-          JPOS2(JPIVOT(I_SD))=JPOS1(I_SD)
-          JPOS1(I_SD)=JPOS2(I_SD)
-          JPOS1(JPIVOT(I_SD))=JPOS2(JPIVOT(I_SD))
+          ijpos2(ji_sd)         = ijpos1(ipivot(ji_sd))
+          ijpos2(ipivot(ji_sd)) = ijpos1(ji_sd)
 
+          ijpos1(ji_sd)         = ijpos2(ji_sd)
+          ijpos1(ipivot(ji_sd)) = ijpos2(ipivot(ji_sd))
 
-          !-------------------------------
-          PIVOT(I_SD)=TAB3(I_SD,I_SD)
-          DO J_SD=1,NBINCO
-             TAB3(I_SD,J_SD)=TAB3(I_SD,J_SD)/PIVOT(I_SD)
+          ds_pivot(ji_sd)       = ds_tab3(ji_sd,ji_sd)
+
+          DO jj_sd=1,nbinco
+             ds_tab3(ji_sd,jj_sd) = ds_tab3(ji_sd,jj_sd)/ds_pivot(ji_sd)
           END DO
-          !-------------------------------
 
-          !-------------------------------
-          DO II_SD=I_SD+1,NBINCO
-             PILIER(II_SD,I_SD)=TAB3(II_SD,I_SD)
-             DO J_SD=1,NBINCO
-                TAB3(II_SD,J_SD)= &
-                     TAB3(II_SD,J_SD)-TAB3(I_SD,J_SD)*PILIER(II_SD,I_SD)
+          DO jii_sd=ji_sd+1,nbinco
+             ds_pilier(jii_sd,ji_sd) = ds_tab3(jii_sd,ji_sd)
+             DO jj_sd=1,nbinco
+                ds_tab3(jii_sd,jj_sd)= &
+                  &  ds_tab3(jii_sd,jj_sd)-ds_tab3(ji_sd,jj_sd)*ds_pilier(jii_sd,ji_sd)
              END DO
           END DO
 
        END DO
-    ELSE ! End init==1
+    ELSE ! End kinit==1
 
        !
-       DO I_SD=1,NBINCO
-          TAB4(I_SD)=TAB4(I_SD)/PIVOT(I_SD)
-          DO II_SD=I_SD+1,NBINCO
-             TAB4(II_SD)=TAB4(II_SD)-TAB4(I_SD)*PILIER(II_SD,I_SD)
+       DO ji_sd=1,nbinco
+          dtab4(ji_sd)  =  dtab4(ji_sd)/ds_pivot(ji_sd)
+          DO jii_sd=ji_sd+1,nbinco
+             dtab4(jii_sd)  = dtab4(jii_sd)-dtab4(ji_sd)*ds_pilier(jii_sd,ji_sd)
           END DO
        END DO
 
-       !  resolution du systeme:
-       TABX(NBINCO)=TAB4(NBINCO)/TAB3(NBINCO,NBINCO)
-       I_SD=NBINCO
-       DO I_SD=NBINCO-1,1,-1
-          X1=0.
-          DO J_SD=I_SD+1,NBINCO
-             X1=X1+TABX(J_SD)*TAB3(I_SD,J_SD)
+       !  Solve the system
+       dl_tabx(nbinco) = dtab4(nbinco)/ds_tab3(nbinco,nbinco)
+       ji_sd  = nbinco
+       DO ji_sd = nbinco-1,1,-1
+          dl_x1=0.
+          DO jj_sd=ji_sd+1,nbinco
+             dl_x1 = dl_x1 + dl_tabx(jj_sd)*ds_tab3(ji_sd,jj_sd)
           END DO
-          TABX(I_SD)=TAB4(I_SD)-X1
+          dl_tabx(ji_sd) = dtab4(ji_sd) - dl_x1
        END DO
 
-       DO J_SD=1,NBINCO
-          TAB7(JPOS1(J_SD))=TABX(J_SD)
+       DO jj_sd=1,nbinco
+          dtab7(ijpos1(jj_sd)) = dl_tabx(jj_sd)
        END DO
     ENDIF
 
-  END SUBROUTINE SUR_DETERMINE
+  END SUBROUTINE sur_determine
 
 END MODULE surdetermine
