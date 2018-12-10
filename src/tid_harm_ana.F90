@@ -95,7 +95,8 @@ PROGRAM tid_harm_ana
   !! Software governed by the CeCILL licence (Licence/TIDAL_TOOLS_CeCILL.txt)
   !!----------------------------------------------------------------------
   !!----------------------------------------------------------------------
-  ! set default values ( to be included in namelist later )
+  ! set default values (  namelist overwrite these values )
+
   ! input files :
   cf_namli='namelist'
 
