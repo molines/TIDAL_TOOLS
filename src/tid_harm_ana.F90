@@ -23,12 +23,13 @@ PROGRAM tid_harm_ana
   INTEGER(KIND=4), DIMENSION(:), ALLOCATABLE :: id_varhx, id_varhy, id_varA, id_varG
   INTEGER(KIND=4), DIMENSION(3) :: id_dim
   INTEGER(KIND=4) :: id_var, id_vart, id_varx, id_vary, id_var_lon, id_var_lat
-  INTEGER(KIND=4) :: ijul0, ijuli, ijule
+  INTEGER(KIND=4) :: ijul0, ijuli, ijule,ijulb
   INTEGER(KIND=4) :: narg, iargc, ijarg, init, ixtype, inum=20
   INTEGER(KIND=4) :: npi, npj, npt, npiout, npjout, nfiles
   INTEGER(KIND=4) :: ncid, istatus
   INTEGER(KIND=4) :: iyy, imm, idd, ihh, imn, isec
   INTEGER(KIND=4) :: iyye, imme, idde
+  INTEGER(KIND=4) :: iyyb, immb, iddb
   INTEGER(KIND=4) :: nhc, nhan, nsp, nun
 
   INTEGER(KIND=2), DIMENSION(:,:), ALLOCATABLE :: int2tabglo
@@ -163,6 +164,9 @@ PROGRAM tid_harm_ana
   ENDDO
 
   ! Sanity check
+  DO jfil=1,nfiles
+     lchk=lchk .OR. chkfile(cf_lst(jfil))
+  ENDDO
   IF (lzmean) THEN
     lchk = lchk .OR. chkfile(cf_hgr)
     lchk = lchk .OR. chkfile(cf_msk)
@@ -314,18 +318,18 @@ PROGRAM tid_harm_ana
 
         IF (lzmean ) CALL ZeroMean( dtmp_r4 )
 
-        dl_time = dl_time + dn_tsamp
+        dl_time = dl_time + dn_tsamp  ! seconds
 
         ! Update nodal corrections:
         ijul0 = ijuli + FLOOR(dl_time/86400.) ! Julian day of first time dump in file
         CALL caldat(ijul0,imm,idd,iyy)
         dl_hfrac = ijuli+dl_time/86400.-ijul0
 
-        IF ( MOD ((jt-1), 8 ) == 0 ) THEN
-        WRITE(6,*)' mm dd yy :',imm,idd,iyy
-        WRITE(6,'(a,1x,f12.2,1x,a,1x,i12,1x,a,1x,f18.8)')' ztime    : ',dl_time,'  ijul0 : ',ijul0,' HFRAC : ', dl_hfrac
-        CALL FLUSH(6)
-        ENDIF
+ !      IF ( MOD ((jt-1), 40 ) == 0 ) THEN
+ !      WRITE(6,*)' mm dd yy :',imm,idd,iyy
+ !      WRITE(6,'(a,1x,f12.2,1x,a,1x,i12,1x,a,1x,f18.8)')' ztime    : ',dl_time,'  ijul0 : ',ijul0,' HFRAC : ', dl_hfrac
+ !      CALL FLUSH(6)
+ !      ENDIF
 
         CALL tide_vuf( dvt(1:npconst), dut(1:npconst) , dft(1:npconst), cname(1:npconst) ,npconst, iyy, imm, idd, dl_hfrac)
 
@@ -348,14 +352,15 @@ PROGRAM tid_harm_ana
      ! STOP LOOP ON INPUT FILES HERE
   END DO
 
-
-  ijule = ijul0 + FLOOR(dl_time/86400.) - 1
+  ijule = ijulb + FLOOR(dl_time/86400.)
+ print *,dl_time/86400.d0, ijul0, ijule
+  CALL caldat(ijulb,immb,iddb,iyyb)  
   CALL caldat(ijule,imme,idde,iyye)  
 
   PRINT *,''
-  PRINT *,'START DATE (ddmmyy)        : ', idd, imm, iyy
+  PRINT *,'START DATE (ddmmyy)        : ', iddb, immb, iyyb
   PRINT *,'END DATE (ddmmyy)          : ', idde, imme, iyye
-  PRINT *,'NUMBER OF DAYS FOR ANALYSIS: ', ijule-ijul0 + 1
+  PRINT *,'NUMBER OF DAYS FOR ANALYSIS: ', ijule-ijulb + 1
   PRINT *,'SAMPLING PERIOD (seconds)  : ', FLOOR(dn_tsamp)
   PRINT *,''
 
@@ -418,22 +423,15 @@ CONTAINS
     INTEGER(KIND=4) :: istatus
     REAL(KIND=8), DIMENSION(:), ALLOCATABLE :: dl_lon, dl_lat
 
-    ! Read input file
+    ! Read input file ( sanity check done in main)
     !----------------- 
     istatus = NF90_OPEN (cf_in, NF90_NOWRITE, ncid)
-    IF (istatus /= NF90_NOERR) THEN
-       PRINT *, 'Can not open file: ', cf_in
-       STOP
-    ENDIF
-
-    istatus=NF90_INQ_DIMID (ncid,cdim_x,id_var)
+    istatus = NF90_INQ_DIMID (ncid,cdim_x,id_var)
     IF (istatus == NF90_NOERR) THEN 
        ln_moor=.FALSE.
     ELSE
        ln_moor=.TRUE.
     ENDIF
-
-    ! Get mooring indice on global grid
 
     istatus=NF90_INQ_DIMID (ncid,cdim_t,id_var)
     IF (istatus /= NF90_NOERR) THEN
@@ -465,12 +463,14 @@ print *, ca_units
 !7000 FORMAT(a,a, I4.4,'-',I2.2,'-',I2.2,' ',I2.2,':',I2.2,':',I2.2)
     print *, iyy,imm,idd
 
-    ijuli = julday(imm,idd,iyy)                ! Julian day of time origin in data file
+    ijuli = julday(imm,idd,iyy)             ! Julian day of time origin in data file
     ijul0 = ijuli + FLOOR(dg_time(1)/dcoef) ! Julian day of first time dump in file
     !rbb
     PRINT*,dg_time(1)/dcoef, ijuli, ijul0
 
     CALL caldat(ijul0,imm,idd,iyy)          ! Set initial date month/day/year 
+    immb=imm ; iddb=idd ; iyyb=iyy          ! save initial time (begin) for information
+    ijulb=ijul0
 
     dl_hfrac=ihh+imn/60.d0+isec/3600.d0
     ijuli=ijul0
