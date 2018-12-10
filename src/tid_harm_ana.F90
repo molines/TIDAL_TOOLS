@@ -459,16 +459,17 @@ CONTAINS
     istatus = NF90_GET_ATT(ncid, id_var, "units", ca_units)
 print *, ca_units
     IF ( index(ca_units,'hours') /= 0 ) THEN
+       READ(ca_units,7000)  iyy, imm, idd, ihh, imn, isec
        dcoef=24.d0
     ELSEIF ( index(ca_units,'seconds') /= 0 ) THEN
+       READ(ca_units,7001)  iyy, imm, idd, ihh, imn, isec
        dcoef=86400.d0
     ELSE 
        PRINT *, 'time unit not understood'
        STOP
     ENDIF
-    READ(ca_units,7000)  iyy, imm, idd, ihh, imn, isec
 7000 FORMAT('hours since ', I4.4,'-',I2.2,'-',I2.2,' ',I2.2,':',I2.2,':',I2.2)
-!7000 FORMAT(a,a, I4.4,'-',I2.2,'-',I2.2,' ',I2.2,':',I2.2,':',I2.2)
+7001 FORMAT('seconds since ', I4.4,'-',I2.2,'-',I2.2,' ',I2.2,':',I2.2,':',I2.2)
     print *, iyy,imm,idd
 
     ijuli = julday(imm,idd,iyy)             ! Julian day of time origin in data file
