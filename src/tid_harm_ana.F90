@@ -590,7 +590,7 @@ print *, ca_units
     istatus = NF90_ENDDEF(ncid)
 
     ! need to test if change of dimemsion between in and out
-    IF ( ln_lonlat_2d_in  == ln_lonlat_2d_out ) THEN
+    IF ( ln_lonlat_2d_in  .eqv. ln_lonlat_2d_out ) THEN
       istatus = NF90_PUT_VAR(ncid, id_var_lon,dlon_r4)
       istatus = NF90_PUT_VAR(ncid, id_var_lat,dlat_r4)
     ELSE  ! 1d in and 2d out 
