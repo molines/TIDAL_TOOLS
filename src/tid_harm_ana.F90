@@ -55,14 +55,14 @@ PROGRAM tid_harm_ana
   CHARACTER(len=120)                         :: cf_namli
   CHARACTER(len=120)                         :: cldum
   CHARACTER(len=120)                         :: cn_v_in, cn_v_out_x, cn_v_out_y
-  CHARACTER(len=120)                         :: cdim_x,     cdim_y,     cdim_t
-  CHARACTER(len=120)                         :: cdim_x_out, cdim_y_out, cdim_t_out
-  CHARACTER(len=120)                         :: cv_lon,     cv_lat,    cv_time
-  CHARACTER(len=120)                         :: cv_lon_out, cv_lat_out,cv_time_out
+  CHARACTER(len=120)                         :: cn_dim_x,     cn_dim_y,     cn_dim_t
+  CHARACTER(len=120)                         :: cn_dim_x_out, cn_dim_y_out, cn_dim_t_out
+  CHARACTER(len=120)                         :: cn_var_lon,     cn_var_lat,    cn_var_time
+  CHARACTER(len=120)                         :: cn_var_lon_out, cn_var_lat_out,cn_var_time_out
   CHARACTER(len=120)                         :: cf_hgr='mesh_hgr.nc'
   CHARACTER(len=120)                         :: cf_msk='mask.nc'
   CHARACTER(len=120)                         :: ca_units
-  CHARACTER(len=120)                         :: ca_miss_in, ca_miss_out
+  CHARACTER(len=120)                         :: cn_att_miss, cn_att_miss_out
 
   CHARACTER(LEN=1)                           :: cn_cgrid='T'  ! either one of T U V or F
 
@@ -74,12 +74,13 @@ PROGRAM tid_harm_ana
   LOGICAL :: lchk=.FALSE.
   LOGICAL :: ln_lonlat_2d_in=.FALSE. , ln_lonlat_2d_out=.TRUE.
 
-  NAMELIST /input_file_format/ cdim_x, cdim_y, cdim_t, &
-     &                         cv_lon, cv_lat, cv_time, &
-     &                         ln_lonlat_2d_in
-  NAMELIST /output_file_format/ cdim_x_out, cdim_y_out, cdim_t_out, &
-     &                          cv_lon_out, cv_lat_out, cv_time_out, &
-     &                         ln_lonlat_2d_out
+  NAMELIST /input_file_format/ cn_dim_x, cn_dim_y, cn_dim_t, &
+     &                         cn_var_lon, cn_var_lat, cn_var_time, &
+     &                         cn_att_miss, ln_lonlat_2d_in
+
+  NAMELIST /output_file_format/ cn_dim_x_out, cn_dim_y_out, cn_dim_t_out, &
+     &                          cn_var_lon_out, cn_var_lat_out, cn_var_time_out, &
+     &                          cn_att_miss_out, ln_lonlat_2d_out
 
   NAMELIST /analysis_param/ ln_moor, ln_short, &
        cn_v_in, cn_v_out_x, cn_v_out_y, cn_fharm ,&
@@ -98,18 +99,18 @@ PROGRAM tid_harm_ana
   ! input files :
   cf_namli='namelist'
 
-  cdim_x='lon'  ; cv_lon='lon'
-  cdim_y='lat'  ; cv_lat='lat'
-  cdim_t='time' ; cv_time='time'
-  ca_miss_in='missing_value'
+  cn_dim_x='lon'  ; cn_var_lon='lon'
+  cn_dim_y='lat'  ; cn_var_lat='lat'
+  cn_dim_t='time' ; cn_var_time='time'
+  cn_att_miss='missing_value'
   ln_lonlat_2d_in=.FALSE.
 
   ! output file
   cn_fharm='res_harm.nc'
-  cdim_x_out='x'  ; cv_lon_out='nav_lon'
-  cdim_y_out='y'  ; cv_lat_out='nav_lat'
-  cdim_t_out='time' ; cv_time_out='time_counter'
-  ca_miss_out='_FillValue'
+  cn_dim_x_out='x'  ; cn_var_lon_out='nav_lon'
+  cn_dim_y_out='y'  ; cn_var_lat_out='nav_lat'
+  cn_dim_t_out='time' ; cn_var_time_out='time_counter'
+  cn_att_miss_out='_FillValue'
   ln_lonlat_2d_out=.TRUE.
 
   ! constituent must be choosen in the namelist
@@ -181,9 +182,15 @@ PROGRAM tid_harm_ana
 
   OPEN( inum, file = cf_namli, status = 'old' , form   = 'formatted' )
   READ( inum, NML = analysis_param )
-  REWIND(inum)
 
+  REWIND(inum)
   READ( inum, NML = constituents )
+
+  REWIND(inum)
+  READ( inum, NML = input_file_format )
+
+  REWIND(inum)
+  READ( inum, NML = output_file_format )
   CLOSE( inum )
 
   ! look for the number of required constituents for analysis
@@ -274,7 +281,7 @@ PROGRAM tid_harm_ana
      ENDIF
 
      ! get number of time dumps
-     istatus=NF90_INQ_DIMID (ncid,cdim_t,id_var)
+     istatus=NF90_INQ_DIMID (ncid,cn_dim_t,id_var)
      IF (istatus /= NF90_NOERR) THEN
         PRINT *, 'Pb with time-dimension in file: ', cf_in
         STOP
@@ -287,7 +294,7 @@ PROGRAM tid_harm_ana
         PRINT *, 'CAN NOT FIND VARIABLE: ', TRIM(cn_v_in), ' IN FILE ', cf_in
         STOP
      ELSE
-        istatus = NF90_GET_ATT(ncid, id_var, ca_miss_in, dmissval)
+        istatus = NF90_GET_ATT(ncid, id_var, cn_att_miss, dmissval)
         istatus = NF90_INQUIRE_VARIABLE(ncid, id_var, cldum, ixtype)
         IF (ixtype==NF90_SHORT) THEN 
            ln_short=.TRUE.
@@ -426,21 +433,21 @@ CONTAINS
     ! Read input file ( sanity check done in main)
     !----------------- 
     istatus = NF90_OPEN (cf_in, NF90_NOWRITE, ncid)
-    istatus = NF90_INQ_DIMID (ncid,cdim_x,id_var)
+    istatus = NF90_INQ_DIMID (ncid,cn_dim_x,id_var)
     IF (istatus == NF90_NOERR) THEN 
        ln_moor=.FALSE.
     ELSE
        ln_moor=.TRUE.
     ENDIF
 
-    istatus=NF90_INQ_DIMID (ncid,cdim_t,id_var)
+    istatus=NF90_INQ_DIMID (ncid,cn_dim_t,id_var)
     IF (istatus /= NF90_NOERR) THEN
        PRINT *, 'Pb with time-dimension in file: ', cf_in
        STOP
     ENDIF
     istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npt)
 
-    istatus = NF90_INQ_VARID(ncid,cv_time,id_var)
+    istatus = NF90_INQ_VARID(ncid,cn_var_time,id_var)
     IF (istatus /= NF90_NOERR) THEN
        PRINT *, 'Pb with time-variable in file: ', cf_in
        STOP
@@ -479,19 +486,19 @@ print *, ca_units
 
     IF (ln_moor) THEN
        ALLOCATE(dlon_r4(1,1), dlat_r4(1,1))
-       istatus = NF90_INQ_VARID(ncid, cv_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlon_r4)
-       istatus = NF90_INQ_VARID(ncid, cv_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlat_r4)
+       istatus = NF90_INQ_VARID(ncid, cn_var_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlon_r4)
+       istatus = NF90_INQ_VARID(ncid, cn_var_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlat_r4)
     ELSE
-       istatus=NF90_INQ_DIMID (ncid, cdim_x, id_var)  ; istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npi)
-       istatus=NF90_INQ_DIMID (ncid, cdim_y, id_var)  ; istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npj)
+       istatus=NF90_INQ_DIMID (ncid, cn_dim_x, id_var)  ; istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npi)
+       istatus=NF90_INQ_DIMID (ncid, cn_dim_y, id_var)  ; istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npj)
        IF ( ln_lonlat_2d_in ) THEN
           ALLOCATE( dlon_r4(npi,npj), dlat_r4(npi,npj) )
-          istatus = NF90_INQ_VARID(ncid, cv_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlon_r4)
-          istatus = NF90_INQ_VARID(ncid, cv_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlat_r4)
+          istatus = NF90_INQ_VARID(ncid, cn_var_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlon_r4)
+          istatus = NF90_INQ_VARID(ncid, cn_var_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dlat_r4)
        ELSE
           ALLOCATE( dlon_r4(npi,1), dlat_r4(1,npj) ,dl_lon(npi), dl_lat(npj))
-          istatus = NF90_INQ_VARID(ncid, cv_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dl_lon)
-          istatus = NF90_INQ_VARID(ncid, cv_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dl_lat)
+          istatus = NF90_INQ_VARID(ncid, cn_var_lon, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dl_lon)
+          istatus = NF90_INQ_VARID(ncid, cn_var_lat, id_var) ; istatus = NF90_GET_VAR(ncid, id_var, dl_lat)
           dlon_r4(:,1)=dl_lon
           dlat_r4(1,:)=dl_lat
           DEALLOCATE (dl_lon, dl_lat )
@@ -525,31 +532,31 @@ print *, ca_units
     IF (ln_moor) THEN
        npiout=1
        npjout=1
-       istatus = NF90_DEF_DIM(ncid, cdim_x_out,      npiout, id_dim(1))
-       istatus = NF90_DEF_VAR(ncid, cv_lon_out,      NF90_FLOAT, id_dim(1), id_var_lon)
+       istatus = NF90_DEF_DIM(ncid, cn_dim_x_out,      npiout, id_dim(1))
+       istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,      NF90_FLOAT, id_dim(1), id_var_lon)
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
-       istatus = NF90_DEF_DIM(ncid, cdim_y_out,      npjout, id_dim(2))
-       istatus = NF90_DEF_VAR(ncid, cv_lat_out,      NF90_FLOAT, id_dim(2), id_var_lat)
+       istatus = NF90_DEF_DIM(ncid, cn_dim_y_out,      npjout, id_dim(2))
+       istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,      NF90_FLOAT, id_dim(2), id_var_lat)
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
     ELSE
        npiout=npi
        npjout=npj
-       istatus = NF90_DEF_DIM(ncid, cdim_x_out,     npiout, id_dim(1))
-       istatus = NF90_DEF_DIM(ncid, cdim_y_out,     npjout, id_dim(2))
+       istatus = NF90_DEF_DIM(ncid, cn_dim_x_out,     npiout, id_dim(1))
+       istatus = NF90_DEF_DIM(ncid, cn_dim_y_out,     npjout, id_dim(2))
        IF ( ln_lonlat_2d_out ) THEN
-         istatus = NF90_DEF_VAR(ncid, cv_lon_out,     NF90_FLOAT, id_dim(1:2), id_var_lon)
+         istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1:2), id_var_lon)
        ELSE
-         istatus = NF90_DEF_VAR(ncid, cv_lon_out,     NF90_FLOAT, id_dim(1), id_var_lon)
+         istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1), id_var_lon)
        ENDIF
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
 
        IF ( ln_lonlat_2d_out ) THEN
-         istatus = NF90_DEF_VAR(ncid, cv_lat_out,     NF90_FLOAT, id_dim(1:2), id_var_lat)
+         istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(1:2), id_var_lat)
        ELSE
-         istatus = NF90_DEF_VAR(ncid, cv_lat_out,     NF90_FLOAT, id_dim(2), id_var_lat)
+         istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(2), id_var_lat)
        ENDIF
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
@@ -559,22 +566,22 @@ print *, ca_units
        istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_x), NF90_FLOAT, id_dim(1:2), id_varhx(jn)) 
        istatus = NF90_PUT_ATT(ncid, id_varhx(jn), 'long_name',TRIM(cname(jn))//TRIM(cn_v_out_x) )
        istatus = NF90_PUT_ATT(ncid, id_varhx(jn), 'units', 'meters')
-       istatus = NF90_PUT_ATT(ncid, id_varhx(jn), ca_miss_out, 0.)
+       istatus = NF90_PUT_ATT(ncid, id_varhx(jn), cn_att_miss_out, 0.)
 
        istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_y), NF90_FLOAT, id_dim(1:2), id_varhy(jn)) 
        istatus = NF90_PUT_ATT(ncid, id_varhy(jn), 'long_name',TRIM(cname(jn))//TRIM(cn_v_out_y) )
        istatus = NF90_PUT_ATT(ncid, id_varhy(jn), 'units', 'meters')
-       istatus = NF90_PUT_ATT(ncid, id_varhy(jn), ca_miss_out, 0.)
+       istatus = NF90_PUT_ATT(ncid, id_varhy(jn), cn_att_miss_out, 0.)
 
        istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_A', NF90_FLOAT, id_dim(1:2), id_varA(jn))
        istatus = NF90_PUT_ATT(ncid, id_varA(jn), 'long_name',TRIM(cname(jn))//'_Amplitude')
        istatus = NF90_PUT_ATT(ncid, id_varA(jn), 'units', 'meters')
-       istatus = NF90_PUT_ATT(ncid, id_varA(jn), ca_miss_out, 0.)
+       istatus = NF90_PUT_ATT(ncid, id_varA(jn), cn_att_miss_out, 0.)
 
        istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_G', NF90_FLOAT, id_dim(1:2), id_varG(jn))
        istatus = NF90_PUT_ATT(ncid, id_varG(jn), 'long_name',TRIM(cname(jn))//'_Phase')
        istatus = NF90_PUT_ATT(ncid, id_varG(jn), 'units', 'degrees')
-       istatus = NF90_PUT_ATT(ncid, id_varG(jn), ca_miss_out, 0.)
+       istatus = NF90_PUT_ATT(ncid, id_varG(jn), cn_att_miss_out, 0.)
 
     END DO
 
