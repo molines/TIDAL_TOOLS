@@ -4,7 +4,7 @@ include  make.macro
 BINDIR = ../bin
 VPATH = $(BINDIR)
 
-EXEC = tid_conv_ri tid_conv_ag   tide_predict tid_harm_ana tide_ana_ssh0
+EXEC = tid_conv_ri tid_conv_ag   tid_predict tid_harm_ana tide_ana_ssh0
 
 
 all : $(EXEC)
@@ -15,8 +15,8 @@ tid_conv_ri: tid_conv_ri.f90
 tid_conv_ag: tid_conv_ag.f90
 	$(F90) tid_conv_ag.f90 -o $(BINDIR)/tid_conv_ag  $(FFLAGS)
 
-tide_predict: tide.o tide_predict.F90
-	$(F90)  tide_predict.F90 -o $(BINDIR)/tide_predict tide.o $(FFLAGS)
+tid_predict: tide.o tid_predict.F90
+	$(F90)  tid_predict.F90 -o $(BINDIR)/tid_predict tide.o $(FFLAGS)
 
 tid_harm_ana: tide.o surdetermine.o tid_harm_ana.F90
 	$(F90)  tid_harm_ana.F90 -o $(BINDIR)/tid_harm_ana surdetermine.o tide.o $(FFLAGS)
