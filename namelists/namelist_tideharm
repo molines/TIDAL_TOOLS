@@ -1,3 +1,5 @@
+!!==========  Analysis  namelist  ======================
+!!     ( no interference with prediction namelist )
 !!
 !! namelist for program tide_ana.f90
 !!
@@ -49,7 +51,7 @@
   cn_var_time_out = 'time_counter' ! name of time variable [ not used ]
   cn_att_miss_out ='_FillValue'    ! name of missing value attribute
   ln_lonlat_2d_out = .TRUE.        ! F : lon(I), lat(J)
-!                                  !  T : lon(I,J), lat(I,J)
+!                                  ! T : lon(I,J), lat(I,J)
 /
 &analysis_param
   ln_moor           = .FALSE.
@@ -61,21 +63,48 @@
   dn_ave            = -0.5
   cn_fharm          = 'res_harm_MSL.nc'
 /
+!!==========  Prediction namelist below ======================
+!!     ( no interference with Analysis namelist )
 !!
-!! prediction_param
-!!
-!! name_var          = variable to be analysed
-!! tsamp             = sampling period
-!! ncfile_harm       = harmonic data file
-!! ncfile_out        = prediction output file
-!!
-&prediction_param
-  name_var          = 'sossheig'
-  long_name_var     = 'Sea Surface height from tidal prediction'
-  var_units         = 'meters'
-  ncfile_harm       = 'res_harm_ssh.nc'
-  ncfile_out        = 'predict_ssh.nc'
+&predic_constituents
+! set the list of constituents to use in the prediction
+cname='M2','S2','N2','K1','O1'
 /
+!
+&predic_input_file_format
+!  Define the netcdf format of the        input file(s)
+  cn_dim_x = 'lon'                 ! name of longitude dimension
+  cn_dim_y = 'lat'                 ! name of latitude dimension
+  cn_dim_t = 'time'                ! name of time dimension
+!
+  cn_var_lon = 'lon'               ! name of longitude variable
+  cn_var_lat = 'lat'               ! name of latitude variable
+  cn_var_time = 'time'             ! name of time variable
+  cn_att_miss ='missing_value'     ! name of missing value attribute
+  ln_lonlat_2d_in = .FALSE.        !  F : lon(I), lat(J)
+!                                  !  T : lon(I,J), lat(I,J)
+/
+&harm_file_format
+!  Define the netcdf format of the        harmonic file(s) [ cn_fharm ]
+  cn_dim_x_harm = 'x'               ! name of longitude dimension
+  cn_dim_y_harm = 'y'               ! name of latitude dimension
+!
+  cn_var_lon_harm = 'nav_lon'       ! name of longitude variable
+  cn_var_lat_harm = 'nav_lat'       ! name of latitude variable
+  cn_att_miss_harm ='_FillValue'    ! name of missing value attribute
+  ln_lonlat_2d_harm = .TRUE.        ! F : lon(I), lat(J)
+!                                   ! T : lon(I,J), lat(I,J)
+  cn_real_ext       ='_x_elev'      ! extension used for real part of the constituent
+  cn_imag_ext       ='_y_elev'      ! extension used for the imaginary part of the constituent
+/
+&prediction_param
+  cn_var_nm          = 'sossheig'                                   ! name of the variable to predict
+  cn_var_ln          = 'Sea Surface height from tidal prediction'   ! long name of this variable
+  cn_var_unit        = 'meters'                                     ! units of this variable
+  cn_fharm           = 'res_harm_ssh.nc'                            ! input harmonic constituent file
+  cn_fout            = 'predict_ssh.nc'                             ! output file with prediction
+/
+!! ===============  Information about beat period of tidal constituents =================
 &beat_period
 ! not used as namelist entry, this is an information only
  K1 -- Q1 :    9.13293270147657       Days

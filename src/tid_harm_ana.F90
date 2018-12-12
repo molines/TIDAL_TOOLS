@@ -13,6 +13,7 @@ PROGRAM tid_harm_ana
   !!   routines      : description
   !!----------------------------------------------------------------------
   USE tide
+  USE utils
   USE surdetermine
   USE netcdf
 
@@ -75,12 +76,12 @@ PROGRAM tid_harm_ana
   LOGICAL :: ln_lonlat_2d_in=.FALSE. , ln_lonlat_2d_out=.TRUE.
 
   NAMELIST /input_file_format/ cn_dim_x, cn_dim_y, cn_dim_t, &
-     &                         cn_var_lon, cn_var_lat, cn_var_time, &
-     &                         cn_att_miss, ln_lonlat_2d_in
+       &                         cn_var_lon, cn_var_lat, cn_var_time, &
+       &                         cn_att_miss, ln_lonlat_2d_in
 
   NAMELIST /output_file_format/ cn_dim_x_out, cn_dim_y_out, cn_dim_t_out, &
-     &                          cn_var_lon_out, cn_var_lat_out, cn_var_time_out, &
-     &                          cn_att_miss_out, ln_lonlat_2d_out
+       &                          cn_var_lon_out, cn_var_lat_out, cn_var_time_out, &
+       &                          cn_att_miss_out, ln_lonlat_2d_out
 
   NAMELIST /analysis_param/ ln_moor, ln_short, &
        cn_v_in, cn_v_out_x, cn_v_out_y, cn_fharm ,&
@@ -114,7 +115,7 @@ PROGRAM tid_harm_ana
   cn_att_miss_out='_FillValue'
   ln_lonlat_2d_out=.TRUE.
 
-  ! constituent must be choosen in the namelist
+  ! constituent must be chosen in the namelist
   cname(:)='none'
 
   narg = iargc()
@@ -159,28 +160,26 @@ PROGRAM tid_harm_ana
         ! option
      CASE ( '-n'        ) ; CALL getarg(ijarg, cf_namli   ) ; ijarg=ijarg+1
      CASE ( '-o'        ) ; CALL getarg(ijarg, cn_fharm   ) ; ijarg=ijarg+1
-     CASE ( '-nc4'      ) ; lnc4 = .TRUE.
+     CASE ( '-nc4'      ) ; lnc4   = .TRUE.
      CASE ( '-zeromean' ) ; lzmean = .TRUE.
      CASE DEFAULT    ; PRINT *, ' ERROR : ', TRIM(cldum),' : unknown option.'; STOP 1
      END SELECT
   ENDDO
 
   ! Sanity check
+  lchk = lchk .OR. chkfile(cf_namli)
   DO jfil=1,nfiles
      lchk=lchk .OR. chkfile(cf_lst(jfil))
   ENDDO
   IF (lzmean) THEN
-    lchk = lchk .OR. chkfile(cf_hgr)
-    lchk = lchk .OR. chkfile(cf_msk)
-    IF ( lchk ) STOP
+     lchk = lchk .OR. chkfile(cf_hgr)
+     lchk = lchk .OR. chkfile(cf_msk)
   ENDIF
+  IF ( lchk ) STOP
+  
 
   ! 0. Read the namelist
   ! -------------------------------
-  INQUIRE( FILE = cf_namli, EXIST = l_exist )
-
-  IF ( .NOT. l_exist ) STOP 'Namelist not found'
-
   OPEN( inum, file = cf_namli, status = 'old' , form   = 'formatted' )
   READ( inum, NML = analysis_param )
 
@@ -195,10 +194,10 @@ PROGRAM tid_harm_ana
   CLOSE( inum )
 
   ! look for the number of required constituents for analysis
-   npconst=COUNT ( (cname(:) /= 'none') )
-   ALLOCATE ( id_varhx(npconst), id_varhy(npconst), id_varA(npconst), id_varG(npconst) )
-   ALLOCATE ( domega(npconst), dft(npconst), dut(npconst), dvt(npconst), dvt0(npconst), domega_deg_p_sec(npconst) )
-   ALLOCATE ( dbeat_period(npconst,npconst) )
+  npconst=COUNT ( (cname(:) /= 'none') )
+  ALLOCATE ( id_varhx(npconst), id_varhy(npconst), id_varA(npconst), id_varG(npconst) )
+  ALLOCATE ( domega(npconst), dft(npconst), dut(npconst), dvt(npconst), dvt0(npconst), domega_deg_p_sec(npconst) )
+  ALLOCATE ( dbeat_period(npconst,npconst) )
 
   ! Some Control Prints
   PRINT *, ' '
@@ -215,20 +214,20 @@ PROGRAM tid_harm_ana
   !-------------------------------------------------------------------
   CALL tide_pulse( domega(1:npconst), cname(1:npconst) ,npconst)
   DO jn=1,npconst
-       domega_deg_p_sec(jn)= domega(jn)*180.d0*3600.d0/acos(-1.d0)
-       dbeat_period(jn,jn)=-1.d10   ! not used it is infinity
+     domega_deg_p_sec(jn)= domega(jn)*180.d0*3600.d0/acos(-1.d0)
+     dbeat_period(jn,jn)=-1.d10   ! not used it is infinity
   ENDDO
 
   DO jn=1,npconst
-   DO jc=jn+1,npconst
-       dbeat_period(jn,jc)=360.d0/ABS(( domega_deg_p_sec(jn) - domega_deg_p_sec(jc) ))/24.d0
-       dbeat_period(jc,jn)=dbeat_period(jn,jc)
-!    PRINT *,TRIM(cname(jn))//' -- ',TRIM(cname(jc))//' : ',dbeat_period(jn,jc),' Days'
-   ENDDO
+     DO jc=jn+1,npconst
+        dbeat_period(jn,jc)=360.d0/ABS(( domega_deg_p_sec(jn) - domega_deg_p_sec(jc) ))/24.d0
+        dbeat_period(jc,jn)=dbeat_period(jn,jc)
+        !    PRINT *,TRIM(cname(jn))//' -- ',TRIM(cname(jc))//' : ',dbeat_period(jn,jc),' Days'
+     ENDDO
   ENDDO
   PRINT *,' Maximum Beat period for the selected constituents :',MAXVAL(dbeat_period(:,:) )
 
-   
+
   CALL tide_vuf( dvt0(1:npconst), dut(1:npconst) , dft(1:npconst), cname(1:npconst) ,npconst, iyy, imm, idd, dl_hfrac)
 
   ! Perform harmonic analysis
@@ -248,9 +247,9 @@ PROGRAM tid_harm_ana
      npjout=npj
   ENDIF
 
-! call to ZeroMeanInit must be done after the size of the domain is known
+  ! call to ZeroMeanInit must be done after the size of the domain is known
   IF (lzmean) THEN
-    CALL ZeroMeanInit(cn_cgrid)   ! compute area2d and areatot
+     CALL ZeroMeanInit(cn_cgrid)   ! compute area2d and areatot
   ENDIF
 
   dana_temp(:,:,:) = 0.d0
@@ -333,11 +332,11 @@ PROGRAM tid_harm_ana
         CALL caldat(ijul0,imm,idd,iyy)
         dl_hfrac = ijuli+dl_time/86400.-ijul0
 
- !      IF ( MOD ((jt-1), 40 ) == 0 ) THEN
- !      WRITE(6,*)' mm dd yy :',imm,idd,iyy
- !      WRITE(6,'(a,1x,f12.2,1x,a,1x,i12,1x,a,1x,f18.8)')' ztime    : ',dl_time,'  ijul0 : ',ijul0,' HFRAC : ', dl_hfrac
- !      CALL FLUSH(6)
- !      ENDIF
+        !      IF ( MOD ((jt-1), 40 ) == 0 ) THEN
+        !      WRITE(6,*)' mm dd yy :',imm,idd,iyy
+        !      WRITE(6,'(a,1x,f12.2,1x,a,1x,i12,1x,a,1x,f18.8)')' ztime    : ',dl_time,'  ijul0 : ',ijul0,' HFRAC : ', dl_hfrac
+        !      CALL FLUSH(6)
+        !      ENDIF
 
         CALL tide_vuf( dvt(1:npconst), dut(1:npconst) , dft(1:npconst), cname(1:npconst) ,npconst, iyy, imm, idd, dl_hfrac)
 
@@ -361,7 +360,7 @@ PROGRAM tid_harm_ana
   END DO
 
   ijule = ijulb + FLOOR(dl_time/86400.)
- print *,dl_time/86400.d0, ijul0, ijule
+  print *,dl_time/86400.d0, ijul0, ijule
   CALL caldat(ijulb,immb,iddb,iyyb)  
   CALL caldat(ijule,imme,idde,iyye)  
 
@@ -457,7 +456,7 @@ CONTAINS
     ALLOCATE(dg_time(npt))
     istatus = NF90_GET_VAR(ncid,id_var, dg_time)
     istatus = NF90_GET_ATT(ncid, id_var, "units", ca_units)
-print *, ca_units
+    print *, ca_units
     IF ( index(ca_units,'hours') /= 0 ) THEN
        READ(ca_units,7000)  iyy, imm, idd, ihh, imn, isec
        dcoef=24.d0
@@ -548,39 +547,59 @@ print *, ca_units
        istatus = NF90_DEF_DIM(ncid, cn_dim_x_out,     npiout, id_dim(1))
        istatus = NF90_DEF_DIM(ncid, cn_dim_y_out,     npjout, id_dim(2))
        IF ( ln_lonlat_2d_out ) THEN
-         istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1:2), id_var_lon)
+          istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1:2), id_var_lon)
        ELSE
-         istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1), id_var_lon)
+          istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1), id_var_lon)
        ENDIF
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
 
        IF ( ln_lonlat_2d_out ) THEN
-         istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(1:2), id_var_lat)
+          istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(1:2), id_var_lat)
        ELSE
-         istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(2), id_var_lat)
+          istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(2), id_var_lat)
        ENDIF
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
        istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
     ENDIF
 
     DO jn = 1, npconst
-       istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_x), NF90_FLOAT, id_dim(1:2), id_varhx(jn)) 
+       IF ( lnc4 ) THEN ! use chunking and deflation
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_x), NF90_FLOAT, id_dim(1:2), id_varhx(jn), &
+               &     chunksizes=(/npi,MAX(1,npj/30)/)   ,deflate_level=1 ) 
+       ELSE
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_x), NF90_FLOAT, id_dim(1:2), id_varhx(jn)) 
+       ENDIF
        istatus = NF90_PUT_ATT(ncid, id_varhx(jn), 'long_name',TRIM(cname(jn))//TRIM(cn_v_out_x) )
        istatus = NF90_PUT_ATT(ncid, id_varhx(jn), 'units', 'meters')
        istatus = NF90_PUT_ATT(ncid, id_varhx(jn), cn_att_miss_out, 0.)
 
-       istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_y), NF90_FLOAT, id_dim(1:2), id_varhy(jn)) 
+       IF ( lnc4 ) THEN ! use chunking and deflation
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_y), NF90_FLOAT, id_dim(1:2), id_varhy(jn), &
+               &     chunksizes=(/npi,MAX(1,npj/30)/)   ,deflate_level=1 ) 
+       ELSE
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//TRIM(cn_v_out_y), NF90_FLOAT, id_dim(1:2), id_varhy(jn)) 
+       ENDIF
        istatus = NF90_PUT_ATT(ncid, id_varhy(jn), 'long_name',TRIM(cname(jn))//TRIM(cn_v_out_y) )
        istatus = NF90_PUT_ATT(ncid, id_varhy(jn), 'units', 'meters')
        istatus = NF90_PUT_ATT(ncid, id_varhy(jn), cn_att_miss_out, 0.)
 
-       istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_A', NF90_FLOAT, id_dim(1:2), id_varA(jn))
+       IF ( lnc4 ) THEN ! use chunking and deflation
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_A', NF90_FLOAT, id_dim(1:2), id_varA(jn), &
+               &     chunksizes=(/npi,MAX(1,npj/30)/)   ,deflate_level=1 ) 
+       ELSE
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_A', NF90_FLOAT, id_dim(1:2), id_varA(jn))
+       ENDIF
        istatus = NF90_PUT_ATT(ncid, id_varA(jn), 'long_name',TRIM(cname(jn))//'_Amplitude')
        istatus = NF90_PUT_ATT(ncid, id_varA(jn), 'units', 'meters')
        istatus = NF90_PUT_ATT(ncid, id_varA(jn), cn_att_miss_out, 0.)
 
-       istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_G', NF90_FLOAT, id_dim(1:2), id_varG(jn))
+       IF ( lnc4 ) THEN ! use chunking and deflation
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_G', NF90_FLOAT, id_dim(1:2), id_varG(jn), &
+               &     chunksizes=(/npi,MAX(1,npj/30)/)   ,deflate_level=1 ) 
+       ELSE
+          istatus = NF90_DEF_VAR(ncid,TRIM(cname(jn))//'_G', NF90_FLOAT, id_dim(1:2), id_varG(jn))
+       ENDIF
        istatus = NF90_PUT_ATT(ncid, id_varG(jn), 'long_name',TRIM(cname(jn))//'_Phase')
        istatus = NF90_PUT_ATT(ncid, id_varG(jn), 'units', 'degrees')
        istatus = NF90_PUT_ATT(ncid, id_varG(jn), cn_att_miss_out, 0.)
@@ -591,19 +610,19 @@ print *, ca_units
 
     ! need to test if change of dimemsion between in and out
     IF ( ln_lonlat_2d_in  .eqv. ln_lonlat_2d_out ) THEN
-      istatus = NF90_PUT_VAR(ncid, id_var_lon,dlon_r4)
-      istatus = NF90_PUT_VAR(ncid, id_var_lat,dlat_r4)
+       istatus = NF90_PUT_VAR(ncid, id_var_lon,dlon_r4)
+       istatus = NF90_PUT_VAR(ncid, id_var_lat,dlat_r4)
     ELSE  ! 1d in and 2d out 
-      ALLOCATE ( dl_tmp(npiout,npjout) )
-      DO jj=1,npjout
-        dl_tmp(:,jj) = dlon_r4(:,1)
-      ENDDO
-      istatus = NF90_PUT_VAR(ncid, id_var_lon,dl_tmp)
-      DO ji=1,npiout
-        dl_tmp(ji,:) = dlat_r4(1,:)
-      ENDDO
-      istatus = NF90_PUT_VAR(ncid, id_var_lat,dl_tmp)
-      DEALLOCATE( dl_tmp )
+       ALLOCATE ( dl_tmp(npiout,npjout) )
+       DO jj=1,npjout
+          dl_tmp(:,jj) = dlon_r4(:,1)
+       ENDDO
+       istatus = NF90_PUT_VAR(ncid, id_var_lon,dl_tmp)
+       DO ji=1,npiout
+          dl_tmp(ji,:) = dlat_r4(1,:)
+       ENDDO
+       istatus = NF90_PUT_VAR(ncid, id_var_lat,dl_tmp)
+       DEALLOCATE( dl_tmp )
     ENDIF
     DO jn = 1, npconst
        istatus = NF90_PUT_VAR(ncid, id_varhx(jn), dana_amp(:,:,jn,1))
@@ -615,125 +634,6 @@ print *, ca_units
     istatus = NF90_CLOSE(ncid)
 
   END SUBROUTINE write_file
-
-
-  FUNCTION julday(kmm,kid,kiyyy)
-    ! ------------------------------------------------------------------
-    !                 FUNCTION JULDAY
-    !                 ***************
-    !   PURPOSE:
-    !   --------
-    !    This routine returns the julian day number which begins at noon
-    !  of the calendar date specified by month kmm, day kid, and year kiyyy.
-    !  positive year signifies a.d.; negative, b.c.  (remember that the
-    !  year after 1 b.c. was 1 a.d.)
-    !  routine handles changeover to gregorian calendar on oct. 15, 1582.
-    !
-    !    METHOD:
-    !    -------
-    !     This routine comes directly from the Numerical Recipe Book,
-    !   press et al., numerical recipes, cambridge univ. press, 1986.
-    !
-    !    ARGUMENTS:
-    !    ----------
-    !     kmm     : input, corresponding month
-    !     kid     : input, corresponding day
-    !     kiyyy   : input, corresponding year, positive if a.d, negative b.c.
-    !      
-    !     
-    !   AUTHOR:
-    !   ------
-    !     1998: J.M. Molines for the Doctor form.
-    !-----------------------------------------------------------------
-    !
-    ! ... Declarations
-    !
-    !     INTEGER jpgreg
-    INTEGER, INTENT(IN) :: kmm, kid, kiyyy
-    INTEGER, PARAMETER :: jpgreg = 15+31*(10+12*1582)
-    INTEGER :: il_kiyyy, julday
-    INTEGER iy, im, ia
-
-    il_kiyyy = kiyyy
-
-    ! ... Year 0 never existed ...
-    IF (il_kiyyy.EQ.0) STOP 101
-    !
-    IF (il_kiyyy.LT.0) il_kiyyy = il_kiyyy + 1
-    IF (kmm.GT.2) THEN
-       iy = il_kiyyy
-       im = kmm + 1
-    ELSE
-       iy = il_kiyyy - 1
-       im = kmm + 13
-    END IF
-    !
-    julday = INT(365.25*iy) + INT(30.6001*im) + kid + 1720995 
-    IF (kid+31*(kmm+12*il_kiyyy).GE.jpgreg) THEN
-       ia = INT(0.01*iy)
-       julday = julday + 2 - ia + INT(0.25*ia) 
-    END IF
-    RETURN
-  END FUNCTION julday
-
-  SUBROUTINE caldat(kjulian,kmm,kid,kiyyy)
-    ! -------------------------------------------------------------------
-    !                   SUBROUTINE CALDAT
-    !                   *****************
-    !   PURPOSE:
-    !   --------
-    !    This routine convert a julian day in calendar date.
-    !    It is the inverse of the function julday.  
-    !
-    !    METHOD:
-    !    -------
-    !     This routine comes directly from the Numerical Recipe Book,
-    !   press et al., numerical recipes, cambridge univ. press, 1986.
-    !
-    !    ARGUMENTS:
-    !    ----------
-    !     kjulian : input julian day number
-    !     kmm     : output, corresponding month
-    !     kid     : output, corresponding day
-    !     kiyyy   : output, corresponding year, positive if a.d, negative b.c.
-    !      
-    !    
-    !   AUTHOR:
-    !   ------
-    !     1998: J.M. Molines for the Doctor form.
-    !------------------------------------------------------------------------
-    ! ... Declarations:
-    !
-    IMPLICIT NONE
-
-    INTEGER, INTENT(IN)  :: kjulian
-    INTEGER, INTENT(OUT) :: kmm, kid, kiyyy
-
-    INTEGER, PARAMETER   :: jpgreg = 2299161
-    INTEGER :: ia, ialpha, ib, ic, id, ie
-    !
-    ! ... Cross over to Gregorian Calendar produces this correction:
-    !
-    IF ( kjulian .GE. jpgreg) THEN
-       ialpha = INT ((( kjulian - 1867216) - 0.25)/36524.25 )
-       ia     = kjulian +1 + ialpha -INT (0.25*ialpha)
-    ELSE
-       ia = kjulian
-    END IF
-    !
-    ib = ia + 1524
-    ic = INT (6680. + (( ib -2439870) - 122.1)/365.25 )
-    id = 365* ic + INT (0.25*ic)
-    ie = INT (( ib - id )/30.6001)
-    !
-    kid = ib - id - INT (30.6001*ie)
-    kmm = ie -1
-    IF ( kmm .GT. 12 ) kmm = kmm - 12
-    kiyyy = ic - 4715
-    IF ( kmm   .GT. 2 ) kiyyy = kiyyy - 1
-    IF ( kiyyy .LE. 0 ) kiyyy = kiyyy - 1
-    RETURN
-  END SUBROUTINE caldat
 
 
   SUBROUTINE GetFileList
@@ -827,7 +727,7 @@ print *, ca_units
     darea2d(:,:) = dl_e1(:,:) * dl_e2(:,:) * mask(:,:)
     dareatot     = SUM( darea2d )
 
-   DEALLOCATE (dl_e1, dl_e2 )
+    DEALLOCATE (dl_e1, dl_e2 )
   END SUBROUTINE ZeroMeanInit
 
   SUBROUTINE ZeroMean(dd_tab)
@@ -846,44 +746,5 @@ print *, ca_units
     dl_mean =  SUM( dd_tab(:,:)*darea2d(:,:) ) / dareatot
     dd_tab(:,:) = (dd_tab(:,:) - dl_mean ) * mask(:,:) 
   END SUBROUTINE ZeroMean
-
-  LOGICAL FUNCTION chkfile (cd_file, ld_verbose )
-    !!---------------------------------------------------------------------
-    !!                  ***  FUNCTION chkfile  ***
-    !!
-    !! ** Purpose :  Check if cd_file exists.
-    !!               Return false if it exists, true if it does not
-    !!               Do nothing is filename is 'none'
-    !!
-    !! ** Method  : Doing it this way allow statements such as
-    !!              IF ( chkfile( cf_toto) ) STOP 99  ! missing file
-    !!
-    !!----------------------------------------------------------------------
-    CHARACTER(LEN=*),  INTENT(in) :: cd_file
-    LOGICAL, OPTIONAL, INTENT(in) :: ld_verbose
-
-    INTEGER(KIND=4)               :: ierr
-    LOGICAL                       :: ll_exist, ll_verbose
-    !!----------------------------------------------------------------------
-    IF ( PRESENT(ld_verbose) ) THEN
-       ll_verbose = ld_verbose
-    ELSE
-       ll_verbose = .TRUE.
-    ENDIF
-
-    IF ( TRIM(cd_file) /= 'none')  THEN
-       INQUIRE (file = TRIM(cd_file), EXIST=ll_exist)
-
-       IF (ll_exist) THEN
-          chkfile = .false.
-       ELSE
-          IF ( ll_verbose ) PRINT *, ' File ',TRIM(cd_file),' is missing '
-          chkfile = .true.
-       ENDIF
-    ELSE
-       chkfile = .false.  ! 'none' file is not checked
-    ENDIF
-
-  END FUNCTION chkfile
 
 END PROGRAM tid_harm_ana
