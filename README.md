@@ -101,6 +101,6 @@ of the namelist.
        Variables : <VAR-rootname>_real, <VAR-rootname>_imag
 
 ### sample namelist used in **tid_harm_ana** and **tid_predict**
- A [sample namelist](../blob/master/namelists/namelist_tideharm)  is provided in the namelist sub-directory.
+ A [sample namelist](../master/namelists/namelist_tideharm)  is provided in the namelist sub-directory.
  
 
