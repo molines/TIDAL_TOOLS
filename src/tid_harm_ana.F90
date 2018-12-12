@@ -533,14 +533,17 @@ CONTAINS
     IF (ln_moor) THEN
        npiout=1
        npjout=1
+       ! longitudes
        istatus = NF90_DEF_DIM(ncid, cn_dim_x_out,      npiout, id_dim(1))
-       istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,      NF90_FLOAT, id_dim(1), id_var_lon)
-       istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
-       istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
+         ;  istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,      NF90_FLOAT, id_dim(1), id_var_lon)
+         ;    istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
+         ;    istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
+
+       ! latitudes 
        istatus = NF90_DEF_DIM(ncid, cn_dim_y_out,      npjout, id_dim(2))
-       istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,      NF90_FLOAT, id_dim(2), id_var_lat)
-       istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
-       istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
+         ;  istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,      NF90_FLOAT, id_dim(2), id_var_lat)
+         ;    istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
+         ;    istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
     ELSE
        npiout=npi
        npjout=npj
@@ -551,16 +554,16 @@ CONTAINS
        ELSE
           istatus = NF90_DEF_VAR(ncid, cn_var_lon_out,     NF90_FLOAT, id_dim(1), id_var_lon)
        ENDIF
-       istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
-       istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
+       ;     istatus = NF90_PUT_ATT(ncid, id_var_lon, 'long_name','Longitude')
+       ;     istatus = NF90_PUT_ATT(ncid, id_var_lon, 'units', 'degrees')
 
        IF ( ln_lonlat_2d_out ) THEN
           istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(1:2), id_var_lat)
        ELSE
           istatus = NF90_DEF_VAR(ncid, cn_var_lat_out,     NF90_FLOAT, id_dim(2), id_var_lat)
        ENDIF
-       istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
-       istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
+       ;     istatus = NF90_PUT_ATT(ncid, id_var_lat, 'long_name','Latitude')
+       ;     istatus = NF90_PUT_ATT(ncid, id_var_lat, 'units', 'degrees')
     ENDIF
 
     DO jn = 1, npconst

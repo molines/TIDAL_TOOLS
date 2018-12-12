@@ -25,17 +25,17 @@ PROGRAM tid_predict
   INTEGER(KIND=4)               :: npi   , npj, npt
   INTEGER(KIND=4)               :: npiout, npjout
   INTEGER(KIND=4)               :: npih  , npjh
-  INTEGER(KIND=4)               :: ncid, istatus, id_var, id_vart, id_varx, id_vary
+  INTEGER(KIND=4)               :: ncid, nid_var
+  INTEGER(KIND=4)               :: istatus
   INTEGER(KIND=4)               :: ii0, ij0, inum = 20
   INTEGER(KIND=4)               :: iyy, imm, idd, ihh, imn, isec
   INTEGER(KIND=4)               :: ijul0, ijuli, it0
-  INTEGER(KIND=4), DIMENSION(3) :: id_dim
 
   REAL(KIND=8)                                :: dl_amp, dl_ph, dl_hfrac, dcoef
   REAL(KIND=8), DIMENSION(:),     ALLOCATABLE :: domega, dft, dut, dvt, dvt0
   REAL(KIND=8), DIMENSION(:),     ALLOCATABLE :: dg_time
   REAL(KIND=8), DIMENSION(:,:),   ALLOCATABLE :: dlon, dlat
-  REAL(KIND=8), DIMENSION(:,:,:), ALLOCATABLE :: dres
+  REAL(KIND=8), DIMENSION(:,:),   ALLOCATABLE :: dres
   REAL(KIND=8), DIMENSION(:,:,:), ALLOCATABLE :: dtempx, dtempy
 
   CHARACTER(LEN=100), DIMENSION(jpmax_harmo) :: cname
@@ -66,10 +66,10 @@ PROGRAM tid_predict
        &                       cn_var_lon, cn_var_lat, cn_var_time, &
        &                       cn_att_miss, ln_lonlat_2d_in
 
-   NAMELIST /harm_file_format/ cn_dim_x_harm,   cn_dim_y_harm,      &
-        &                      cn_var_lon_harm, cn_var_lat_harm,    &
-        &                      cn_att_miss_harm, ln_lonlat_2d_harm, &
-        &                      cn_real_ext, cn_imag_ext
+  NAMELIST /harm_file_format/ cn_dim_x_harm,   cn_dim_y_harm,      &
+       &                      cn_var_lon_harm, cn_var_lat_harm,    &
+       &                      cn_att_miss_harm, ln_lonlat_2d_harm, &
+       &                      cn_real_ext, cn_imag_ext
 
   !!----------------------------------------------------------------------
   !! TIDAL_TOOLS , MEOM 2018
@@ -87,12 +87,12 @@ PROGRAM tid_predict
      PRINT *,'     PURPOSE :'
      PRINT *,'       Perform tide prediction using a set of harmonic constituents.' 
      PRINT *,'       The prediction will correspond to the time period covered by'
-     PRINT *,'       the input file, on the same grid.  A residual file (de-tided'
-     PRINT *,'       signal) will be produced.'
+     PRINT *,'       the input file, on the same grid. '
+     PRINT *,'       The output file will have the same netcdf format than the input file.'
      PRINT *,'      '
      PRINT *,'     ARGUMENTS :'
      PRINT *,'       -n NAMLIST-file : give the name of the namelist to be used.' 
-     PRINT *,'       -f INPUT-file : give the name of the input file.'
+     PRINT *,'       -f INPUT-file   : give the name of the input file.'
      PRINT *,'      '
      PRINT *,'     OPTIONS :'
      PRINT *,'        none so far ... '
@@ -102,7 +102,8 @@ PROGRAM tid_predict
      PRINT *,'         none '
      PRINT *,'      '
      PRINT *,'     OUTPUT : '
-     PRINT *,'       netcdf file '
+     PRINT *,'       netcdf file : name specified in the namelist'
+     PRINT *,'         Variable : same as in the input file, specified in the namelist.'
      PRINT *,'      '
      PRINT *,'     SEE ALSO :'
      PRINT *,'       tid_harm_ana'
@@ -185,7 +186,7 @@ PROGRAM tid_predict
   !---------------
 
   it0 = FLOOR(dg_time(1)/dcoef)*86400.
-  CALL CreateOutput (ncid) 
+  CALL CreateOutput (ncid, nid_var) 
 
   DO jt=1,npt 
 
@@ -193,26 +194,20 @@ PROGRAM tid_predict
      CALL caldat(ijul0,imm,idd,iyy)
      dl_hfrac = ijuli+dg_time(jt)/dcoef-ijul0
      !
-     !          write(6,*)
-     !         write(6,*)' time ',dg_time(jt)
-     !         write(6,*)' ijuli ijul0 dl_hfrac ',ijuli,ijul0,dl_hfrac
-     !         write(6,*) imm,idd,iyy
-     !         write(6,*)
-     !
      CALL tide_vuf( dvt(1:npconst), dut(1:npconst) , dft(1:npconst), cname(1:npconst) ,npconst, iyy, imm, idd, dl_hfrac)
-     dres(:,:,:) = 0.d0
+     dres(:,:) = 0.d0
      DO jn=1, npconst
         DO ji=1,npiout
            DO jj=1,npjout
               dl_amp = SQRT(dtempx(ji,jj,jn)**2 + dtempy(ji,jj,jn)**2)
               dl_ph = ATAN2(dtempy(ji,jj,jn),dtempx(ji,jj,jn)) + dvt0(jn) + dut(jn)
-              dres(ji,jj,1) = dres(ji,jj,1) + dft(jn) * dl_amp * COS(dl_ph) * COS(domega(jn)*(dg_time(jt)-it0)) &
-                   &                      - dft(jn) * dl_amp * SIN(dl_ph) * SIN(domega(jn)*(dg_time(jt)-it0))
+              dres(ji,jj) = dres(ji,jj) + dft(jn) * dl_amp * COS(dl_ph) * COS(domega(jn)*(dg_time(jt)-it0)) &
+                   &                    - dft(jn) * dl_amp * SIN(dl_ph) * SIN(domega(jn)*(dg_time(jt)-it0))
            END DO
         END DO
         WRITE(6,'(a,1x,4(f18.8,2x))') TRIM(cname(jn)),dft(jn),dl_amp,SIN(dl_ph),dg_time(jt)-it0
      END DO
-     istatus = NF90_PUT_VAR(ncid, id_var,dres,start = (/ 1, 1, jt /),count = (/ npiout, npjout, 1 /))
+     istatus = NF90_PUT_VAR(ncid, nid_var,dres,start = (/ 1, 1, jt /),count = (/ npiout, npjout, 1 /))
   END DO
 
   istatus = NF90_CLOSE(ncid)
@@ -228,7 +223,7 @@ CONTAINS
     !!
     !!----------------------------------------------------------------------
     ! local Variables :
-    INTEGER(KIND=4) :: istatus
+    INTEGER(KIND=4) :: istatus, id_var
     REAL(KIND=8), DIMENSION(:), ALLOCATABLE :: dl_lon, dl_lat
     !!----------------------------------------------------------------------
     istatus = NF90_OPEN (cf_in, NF90_NOWRITE, ncid)
@@ -332,78 +327,78 @@ CONTAINS
     !!
     !!----------------------------------------------------------------------
     ! local variables
-    INTEGER(KIND=4) :: istatus
+    INTEGER(KIND=4) :: istatus, id_var
     REAL(KIND=8), DIMENSION(:,:), ALLOCATABLE :: dtemp2d
     !!----------------------------------------------------------------------
 
-  istatus = NF90_OPEN (cn_fharm, NF90_NOWRITE, ncid)
+    istatus = NF90_OPEN (cn_fharm, NF90_NOWRITE, ncid)
 
-  istatus=NF90_INQ_DIMID (ncid,cn_dim_x_harm,id_var)
-  IF (istatus /= NF90_NOERR) THEN
-     PRINT *, 'Pb with x-dimension in file: ', cn_fharm
-     STOP
-  ENDIF
-  istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npih)
+    istatus=NF90_INQ_DIMID (ncid,cn_dim_x_harm,id_var)
+    IF (istatus /= NF90_NOERR) THEN
+       PRINT *, 'Pb with x-dimension in file: ', cn_fharm
+       STOP
+    ENDIF
+    istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npih)
 
-  istatus = NF90_INQ_DIMID (ncid,cn_dim_y_harm,id_var)
-  IF (istatus /= NF90_NOERR) THEN
-     PRINT *, 'Pb with y-dimension in file: ', cn_fharm
-     STOP
-  ENDIF
-  istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npjh)
+    istatus = NF90_INQ_DIMID (ncid,cn_dim_y_harm,id_var)
+    IF (istatus /= NF90_NOERR) THEN
+       PRINT *, 'Pb with y-dimension in file: ', cn_fharm
+       STOP
+    ENDIF
+    istatus = NF90_INQUIRE_DIMENSION(ncid, id_var, len=npjh)
 
-  ! Hopefully at this level, both cf_in and cf_harm grid corresponds
-  ! JMM ==> sanity check ?
+    ! Hopefully at this level, both cf_in and cf_harm grid corresponds
+    ! JMM ==> sanity check ?
 
-  ALLOCATE(dtemp2d(npih,npjh))
-  IF (l_moor) THEN
-     ALLOCATE(dtempx(1,1,npconst), dtempy(1,1,npconst))
-  ELSE
-     npi=npih
-     npj=npjh
-     ALLOCATE(dtempx(npi,npj,npconst), dtempy(npi,npj,npconst))
-  ENDIF
+    ALLOCATE(dtemp2d(npih,npjh))
+    IF (l_moor) THEN
+       ALLOCATE(dtempx(1,1,npconst), dtempy(1,1,npconst))
+    ELSE
+       npi=npih
+       npj=npjh
+       ALLOCATE(dtempx(npi,npj,npconst), dtempy(npi,npj,npconst))
+    ENDIF
 
-  DO jt=1, npconst
-     istatus = NF90_INQ_VARID( ncid,TRIM(cname(jt))//TRIM(cn_real_ext),id_var)
-     IF (istatus /= NF90_NOERR) THEN
-        PRINT *, 'Can not find harmonic data ', TRIM(cname(jt))//TRIM(cn_real_ext)//' in file: ', cn_fharm
-        STOP
-     ENDIF
-     istatus = NF90_GET_VAR(ncid,id_var, dtemp2d)
+    DO jt=1, npconst
+       istatus = NF90_INQ_VARID( ncid,TRIM(cname(jt))//TRIM(cn_real_ext),id_var)
+       IF (istatus /= NF90_NOERR) THEN
+          PRINT *, 'Can not find harmonic data ', TRIM(cname(jt))//TRIM(cn_real_ext)//' in file: ', cn_fharm
+          STOP
+       ENDIF
+       istatus = NF90_GET_VAR(ncid,id_var, dtemp2d)
 
-     IF (l_moor) THEN 
-        IF ((npih==1).AND.(npjh==1)) THEN   
-           dtempx(1,1,jt)=dtemp2d(1,1)
-        ELSE       
-           dtempx(1,1,jt)=dtemp2d(ii0,ij0)
-        ENDIF
-     ELSE
-        dtempx(:,:,jt)=dtemp2d(:,:)
-     ENDIF
+       IF (l_moor) THEN 
+          IF ((npih==1).AND.(npjh==1)) THEN   
+             dtempx(1,1,jt)=dtemp2d(1,1)
+          ELSE       
+             dtempx(1,1,jt)=dtemp2d(ii0,ij0)
+          ENDIF
+       ELSE
+          dtempx(:,:,jt)=dtemp2d(:,:)
+       ENDIF
 
-     istatus = NF90_INQ_VARID( ncid,TRIM(cname(jt))//TRIM(cn_imag_ext),id_var)
-     IF (istatus /= NF90_NOERR) THEN
-        PRINT *, 'Can not find harmonic data ', TRIM(cname(jt))//TRIM(cn_imag_ext)//' in file: ', cn_fharm
-        STOP
-     ENDIF
-     istatus = NF90_GET_VAR(ncid,id_var, dtemp2d)
-     IF (l_moor) THEN     
-        IF ((npih==1).AND.(npjh==1)) THEN  
-           dtempy(1,1,jt)=dtemp2d(1,1)
-        ELSE 
-           dtempy(1,1,jt)=dtemp2d(ii0,ij0)
-        ENDIF
-     ELSE
-        dtempy(:,:,jt)=dtemp2d(:,:)
-     ENDIF
-  END DO
-  istatus = NF90_CLOSE(ncid)
-  DEALLOCATE(dtemp2d)
+       istatus = NF90_INQ_VARID( ncid,TRIM(cname(jt))//TRIM(cn_imag_ext),id_var)
+       IF (istatus /= NF90_NOERR) THEN
+          PRINT *, 'Can not find harmonic data ', TRIM(cname(jt))//TRIM(cn_imag_ext)//' in file: ', cn_fharm
+          STOP
+       ENDIF
+       istatus = NF90_GET_VAR(ncid,id_var, dtemp2d)
+       IF (l_moor) THEN     
+          IF ((npih==1).AND.(npjh==1)) THEN  
+             dtempy(1,1,jt)=dtemp2d(1,1)
+          ELSE 
+             dtempy(1,1,jt)=dtemp2d(ii0,ij0)
+          ENDIF
+       ELSE
+          dtempy(:,:,jt)=dtemp2d(:,:)
+       ENDIF
+    END DO
+    istatus = NF90_CLOSE(ncid)
+    DEALLOCATE(dtemp2d)
 
   END SUBROUTINE ReadHarmonics
-  
-  SUBROUTINE CreateOutput (kcid)
+
+  SUBROUTINE CreateOutput (kcid, kid_var)
     !!---------------------------------------------------------------------
     !!                  ***  ROUTINE CreateOutput  ***
     !!
@@ -414,55 +409,90 @@ CONTAINS
     !! ** Method  :  Netcdf. Take care of lnc4 
     !!
     !!----------------------------------------------------------------------
-    INTEGER(KIND=4), INTENT(out) :: kcid   ! netcdf handle for the output file
+    INTEGER(KIND=4), INTENT(out) :: kcid    ! netcdf handle for the output file
+    INTEGER(KIND=4), INTENT(out) :: kid_var ! var id for the working variable
     ! local variables
-    INTEGER(KIND=4) :: istatus
+    INTEGER(KIND=4)               :: istatus, id_var, id_vart, id_varx, id_vary
+    INTEGER(KIND=4), DIMENSION(3) :: id_dim
     !!----------------------------------------------------------------------
+    IF ( lnc4 ) THEN
+       istatus = NF90_CREATE(cn_fout, NF90_NETCDF4, kcid)
+    ELSE
+       istatus = NF90_CREATE(cn_fout, NF90_64BIT_OFFSET, kcid)
+    ENDIF
 
-  istatus = NF90_CREATE(cn_fout, NF90_CLOBBER, kcid)
-  IF (l_moor) THEN
-     npiout=1
-     npjout=1
-     istatus = nf90_DEF_DIM(kcid, cn_dim_t, NF90_UNLIMITED, id_dim(3))
-     istatus = NF90_DEF_VAR(kcid, cn_var_time, NF90_FLOAT, id_dim(3), id_vart)
-        ; istatus = NF90_PUT_ATT(kcid, id_vart, 'long_name','Time')
-        ; istatus = NF90_PUT_ATT(kcid, id_vart, 'units', ca_units)
-     istatus = nf90_DEF_DIM(kcid, cn_dim_x,npiout, id_dim(1))
-     istatus = NF90_DEF_VAR(kcid, cn_var_lon, NF90_FLOAT, id_dim(1), id_varx)
-        ; istatus = NF90_PUT_ATT(kcid, id_varx, 'long_name','Longitude')
-        ; istatus = NF90_PUT_ATT(kcid, id_varx, 'units', 'degrees')
-     istatus = nf90_DEF_DIM(kcid, cn_dim_y, npjout, id_dim(2))
-     istatus = NF90_DEF_VAR(kcid, cn_var_lat, NF90_FLOAT, id_dim(2), id_vary)
-        ; istatus = NF90_PUT_ATT(kcid, id_vary, 'long_name','latitude')
-        ; istatus = NF90_PUT_ATT(kcid, id_vary, 'units', 'degrees')
-  ELSE
-     npiout=npi
-     npjout=npj
-     istatus = nf90_DEF_DIM(kcid, cn_dim_t, NF90_UNLIMITED, id_dim(3))
-     istatus = NF90_DEF_VAR(kcid,'time_counter', NF90_FLOAT, id_dim(3), id_vart)
-     istatus = NF90_PUT_ATT(kcid, id_vart, 'long_name','Time')
-     istatus = NF90_PUT_ATT(kcid, id_vart, 'units', ca_units)
-     istatus = nf90_DEF_DIM(kcid,'x',npiout, id_dim(1))
-     istatus = nf90_DEF_DIM(kcid,'y',npjout, id_dim(2))
-     istatus = NF90_DEF_VAR(kcid,'nav_lon', NF90_FLOAT, id_dim(1:2), id_varx)
-     istatus = NF90_PUT_ATT(kcid, id_varx, 'long_name','Longitude')
-     istatus = NF90_PUT_ATT(kcid, id_varx, 'units', 'degrees')
-     istatus = NF90_DEF_VAR(kcid,'nav_lat', NF90_FLOAT, id_dim(1:2), id_vary)
-     istatus = NF90_PUT_ATT(kcid, id_vary, 'long_name','latitude')
-     istatus = NF90_PUT_ATT(kcid, id_vary, 'units', 'degrees')
+    IF (l_moor) THEN
+       npiout=1
+       npjout=1
+       
+       ! time
+       istatus = nf90_DEF_DIM(kcid, cn_dim_t, NF90_UNLIMITED, id_dim(3))
+       ;  istatus = NF90_DEF_VAR(kcid, cn_var_time, NF90_FLOAT, id_dim(3), id_vart)
+       ;    istatus = NF90_PUT_ATT(kcid, id_vart, 'long_name','Time')
+       ;    istatus = NF90_PUT_ATT(kcid, id_vart, 'units', ca_units)
 
-  ENDIF
-  istatus = nf90_DEF_VAR(kcid,TRIM(cn_var_nm), NF90_FLOAT, id_dim(1:3), id_var) 
-  istatus = NF90_PUT_ATT(kcid, id_var, 'long_name', TRIM(cn_var_ln))
-  istatus = NF90_PUT_ATT(kcid, id_var, 'units', TRIM(cn_var_unit))
-  istatus = NF90_PUT_ATT(kcid, id_var, 'missing_value', 0.)
-  istatus = NF90_ENDDEF(kcid)
+       ! longitudes
+       istatus = NF90_DEF_DIM(kcid, cn_dim_x,      npiout, id_dim(1))
+       ;  istatus = NF90_DEF_VAR(kcid, cn_var_lon,      NF90_FLOAT, id_dim(1), id_varx)
+       ;    istatus = NF90_PUT_ATT(kcid, id_var, 'long_name','Longitude')
+       ;    istatus = NF90_PUT_ATT(kcid, id_var, 'units', 'degrees')
 
-  ALLOCATE(dres(npiout,npjout,1))
+       ! latitudes 
+       istatus = NF90_DEF_DIM(kcid, cn_dim_y,      npjout, id_dim(2))
+       ;  istatus = NF90_DEF_VAR(kcid, cn_var_lat,      NF90_FLOAT, id_dim(2), id_vary)
+       ;    istatus = NF90_PUT_ATT(kcid, id_var, 'long_name','Latitude')
+       ;    istatus = NF90_PUT_ATT(kcid, id_var, 'units', 'degrees')
 
-  istatus = NF90_PUT_VAR(kcid, id_vart,dg_time(1:npt))
-  istatus = NF90_PUT_VAR(kcid, id_varx,dlon)
-  istatus = NF90_PUT_VAR(kcid, id_vary,dlat)
+    ELSE
+       npiout=npi
+       npjout=npj
+       ! time 
+       istatus = nf90_DEF_DIM(kcid, cn_dim_t, NF90_UNLIMITED, id_dim(3))
+       ;  istatus = NF90_DEF_VAR(kcid, cn_var_time, NF90_FLOAT, id_dim(3), id_vart)
+       ;    istatus = NF90_PUT_ATT(kcid, id_vart, 'long_name','Time')
+       ;    istatus = NF90_PUT_ATT(kcid, id_vart, 'units', ca_units)
+
+       ! longitude
+       istatus = NF90_DEF_DIM(kcid, cn_dim_x,     npiout, id_dim(1))
+       IF ( ln_lonlat_2d_in ) THEN
+          istatus = NF90_DEF_VAR(kcid, cn_var_lon,     NF90_FLOAT, id_dim(1:2), id_varx)
+       ELSE
+          istatus = NF90_DEF_VAR(kcid, cn_var_lon,     NF90_FLOAT, id_dim(1), id_varx)
+       ENDIF
+       ;    istatus = NF90_PUT_ATT(kcid, id_varx, 'long_name','Longitude')
+       ;    istatus = NF90_PUT_ATT(kcid, id_varx, 'units', 'degrees')
+
+       ! latitude
+       istatus = NF90_DEF_DIM(kcid, cn_dim_y,     npjout, id_dim(2))
+       IF ( ln_lonlat_2d_in ) THEN
+          istatus = NF90_DEF_VAR(kcid, cn_var_lat,     NF90_FLOAT, id_dim(1:2), id_vary)
+       ELSE
+          istatus = NF90_DEF_VAR(kcid, cn_var_lat,     NF90_FLOAT, id_dim(2), id_vary)
+       ENDIF
+       ;    istatus = NF90_PUT_ATT(kcid, id_vary, 'long_name','Latitude')
+       ;    istatus = NF90_PUT_ATT(kcid, id_vary, 'units', 'degrees')
+    ENDIF
+
+    ! define output variables written in main
+    IF ( lnc4 ) THEN ! use chunking and deflation
+      istatus = nf90_DEF_VAR(kcid,TRIM(cn_var_nm), NF90_FLOAT, id_dim(1:3), kid_var, &
+         &        chunksizes=(/npi,MAX(1,npjout/30)/)   ,deflate_level=1 )
+    ELSE
+      istatus = nf90_DEF_VAR(kcid,TRIM(cn_var_nm), NF90_FLOAT, id_dim(1:3), kid_var) 
+    ENDIF
+    ;   istatus = NF90_PUT_ATT(kcid, kid_var, 'long_name', TRIM(cn_var_ln))
+    ;   istatus = NF90_PUT_ATT(kcid, kid_var, 'units', TRIM(cn_var_unit))
+    ;   istatus = NF90_PUT_ATT(kcid, kid_var, 'missing_value', 0.)
+
+    istatus = NF90_ENDDEF(kcid)
+
+    ALLOCATE(dres(npiout,npjout))
+
+    ! write dimension variables
+    istatus = NF90_PUT_VAR(kcid, id_vart,dg_time(1:npt))
+    istatus = NF90_PUT_VAR(kcid, id_varx,dlon)
+    istatus = NF90_PUT_VAR(kcid, id_vary,dlat)
+
   END SUBROUTINE CreateOutput
 
 END PROGRAM tid_predict
