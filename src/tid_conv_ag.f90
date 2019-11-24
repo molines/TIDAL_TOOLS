@@ -33,10 +33,10 @@ PROGRAM tid_conv_ag
   CHARACTER(LEN=80 )  :: cld_y='y'  ! j dimension name
   CHARACTER(LEN=80 )  :: cld_t='time_counter'  ! t dimension name (if any)
 
-  CHARACTER(LEN=80 )  :: cv_lon='nav_lon'   ! longitude name
-  CHARACTER(LEN=80 )  :: cv_lat='nav_lat'   ! longitude name
+  CHARACTER(LEN=80 )  :: cv_lon='glamt'   ! longitude name
+  CHARACTER(LEN=80 )  :: cv_lat='gphit'   ! longitude name
   CHARACTER(LEN=80 )  :: cv_tim='time_counter'        ! longitude name
-  CHARACTER(LEN=80 )  :: cv_root='elevation'  ! variable rootname
+  CHARACTER(LEN=80 )  :: cv_root='tid'  ! variable rootname
 
   !!----------------------------------------------------------------------
 
@@ -53,12 +53,16 @@ PROGRAM tid_conv_ag
      PRINT *, ' '
      PRINT *, ' OUTPUT:'
      PRINT *, '    Netcdf file names <INPUT_FILE%_RI.nc>_AG.nc'
-     PRINT *, '    Variables : elevation_a, elevation_G'
+     PRINT *, '    Variables : <VAR-root>_a, <VAR-root>_G'
      PRINT *, ' '
      STOP 0
   ENDIF
 
   CALL getarg(1,cf_in)
+  IF [  narg == 2 ] THEN
+    CALL getarg(2, cv_root)
+  ENDIF
+
   ipos=INDEX(cf_in,"_RI.nc") 
   cf_out=TRIM(cf_in(1:ipos-1))//'_AG.nc'
   PRINT *, ' Output file : ',TRIM(cf_out)
@@ -105,31 +109,31 @@ PROGRAM tid_conv_ag
   ENDWHERE
 
   ! Create output file
-  ierr=NF90_CREATE(cf_out,OR(NF90_CLOBBER,NF90_64BIT_OFFSET),ncid)
+  ierr=NF90_CREATE(cf_out,OR(NF90_CLOBBER,NF90_NETCDF4),ncid)
   ! Add dimension
   ierr=NF90_DEF_DIM(ncid,cld_x,npiglo,idx)
   ierr=NF90_DEF_DIM(ncid,cld_y,npjglo,idy)
   ierr=NF90_DEF_DIM(ncid,cld_t,NF90_UNLIMITED,idt)
   ! add variables 
-  ierr=NF90_DEF_VAR(ncid,cv_lon,NF90_DOUBLE,(/idx,idy/), idlon)
+  ierr=NF90_DEF_VAR(ncid,cv_lon,NF90_DOUBLE,(/idx,idy/), idlon,deflate_level=1)
     ierr=NF90_PUT_ATT(ncid,idlon,'standard_name','longitude')
     ierr=NF90_PUT_ATT(ncid,idlon,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlon,'axis','X')
 
-  ierr=NF90_DEF_VAR(ncid,cv_lat,NF90_DOUBLE,(/idx,idy/), idlat)
+  ierr=NF90_DEF_VAR(ncid,cv_lat,NF90_DOUBLE,(/idx,idy/), idlat,deflate_level=1)
     ierr=NF90_PUT_ATT(ncid,idlat,'standard_name','latitude')
     ierr=NF90_PUT_ATT(ncid,idlat,'units','degrees')
     ierr=NF90_PUT_ATT(ncid,idlat,'axis','Y')
 
   ierr=NF90_DEF_VAR(ncid,cv_tim,NF90_DOUBLE,(/idt/), idtime)
 
-  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_a',NF90_FLOAT,(/idx,idy,idt/), idampl)
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_a',NF90_FLOAT,(/idx,idy,idt/), idampl,deflate_level=1)
     ierr=NF90_PUT_ATT(ncid,idampl,'coordinates','nav_lon nav_lat')
     ierr=NF90_PUT_ATT(ncid,idampl,'standard_name','Amplitude')
     ierr=NF90_PUT_ATT(ncid,idampl,'units','m')
     ierr=NF90_PUT_ATT(ncid,idampl,'_FillValue',spval)
 
-  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_G',NF90_FLOAT,(/idx,idy,idt/), idphas)
+  ierr=NF90_DEF_VAR(ncid,TRIM(cv_root)//'_G',NF90_FLOAT,(/idx,idy,idt/), idphas,deflate_level=1)
     ierr=NF90_PUT_ATT(ncid,idphas,'coordinates','nav_lon nav_lat')
     ierr=NF90_PUT_ATT(ncid,idphas,'standard_name','Phase')
     ierr=NF90_PUT_ATT(ncid,idphas,'units','degrees')
