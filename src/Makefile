@@ -7,7 +7,10 @@ VPATH = $(BINDIR)
 EXEC = tid_conv_ri tid_conv_ag   tid_predict tid_harm_ana 
 
 
-all : $(EXEC)
+all : bin_dir $(EXEC)
+
+bin_dir:
+	@mkdir -p $(BINDIR)
 
 tid_conv_ri: tid_conv_ri.f90
 	$(F90) tid_conv_ri.f90 -o $(BINDIR)/tid_conv_ri  $(FFLAGS)
@@ -26,16 +29,14 @@ tid_harm_ana: tide.o surdetermine.o tid_harm_ana.F90 utils.o
 
 tide.o: tide.F90
 	$(F90) -c tide.F90 $(FFLAGS)
-	
+
 surdetermine.o: surdetermine.F90
 	$(F90) -c surdetermine.F90 $(FFLAGS)
 
 utils.o: utils.f90
 	$(F90) -c utils.f90 $(FFLAGS)
-	
+
 
 clean:
 	@\rm -rf  *~ *.o  *.mod
 	@cd $(BINDIR) ; \rm -f  $(EXEC)
-
-

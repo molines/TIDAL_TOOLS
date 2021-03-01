@@ -59,7 +59,7 @@ PROGRAM tid_conv_ag
   ENDIF
 
   CALL getarg(1,cf_in)
-  IF [  narg == 2 ] THEN
+  IF (  narg == 2 ) THEN
     CALL getarg(2, cv_root)
   ENDIF
 
